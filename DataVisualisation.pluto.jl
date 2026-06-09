@@ -29,8 +29,8 @@ using PlutoUI, PlutoTeachingTools, DataVisualisation
 
 # ╔═╡ 5390cff9-e032-438c-b94a-0f75ea5549ac
 let
-	notebook_path_app = joinpath(@__DIR__, "../../App.jl")
-	notebook_path_run = joinpath(@__DIR__, "RunSimulations.jl")
+	notebook_path_app = joinpath(@__DIR__, "../../Notebook.pluto.jl")
+	notebook_path_run = joinpath(@__DIR__, "RunSimulations.pluto.jl")
 	Markdown.parse("You can return to the home page using [this link](./open?path=$notebook_path_app). If you want return to step 2 [click here](./open?path=$notebook_path_run)")
 end
 

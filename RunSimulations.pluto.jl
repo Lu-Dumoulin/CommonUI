@@ -63,8 +63,8 @@ end |> WideCell
 
 # ╔═╡ 5390cff9-e032-438c-b94a-0f75ea5549ac
 let
-	notebook_path_app = joinpath(@__DIR__, "../../App.jl")
-	notebook_path_df = joinpath(@__DIR__, "../GenInputParams.jl")
+	notebook_path_app = joinpath(@__DIR__, "../../Notebook.pluto.jl")
+	notebook_path_df = joinpath(@__DIR__, "../GenInputParams.pluto.jl")
 	Markdown.parse("You can return to the home page using [this link](./open?path=$notebook_path_app). If you want to modify the DataFrame before starting the simlation(s) [click here](./open?path=$notebook_path_df)")
 end |> WideCell
 
@@ -243,7 +243,7 @@ if clu && continue_bash
 else
 	if !clu 
 		let
-			notebook_path_visu = joinpath(@__DIR__, "DataVisualisation.jl")
+			notebook_path_visu = joinpath(@__DIR__, "DataVisualisation.pluto.jl")
 			Markdown.parse("Once the jld/jld2 files are saved, you can use [this link](./open?path=$notebook_path_visu) to visualise the data.")
 		end
 	else
@@ -265,7 +265,7 @@ end |> WideCell
 # ╔═╡ 11b767b5-db54-45f3-855a-2e75f3936e7c
 if clu 
 	let
-	notebook_path_visu = joinpath(@__DIR__, "DataVisualisation.jl")
+	notebook_path_visu = joinpath(@__DIR__, "DataVisualisation.pluto.jl")
 	Markdown.parse("Once the jld/jld2 files are saved, you can use [this link](./open?path=$notebook_path_visu) to visualise the data.")
 	end
 else
