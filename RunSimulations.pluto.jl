@@ -65,7 +65,7 @@ end |> WideCell
 let
 	notebook_path_app = joinpath(@__DIR__, "../../Notebook.pluto.jl")
 	notebook_path_df = joinpath(@__DIR__, "../GenInputParams.pluto.jl")
-	Markdown.parse("You can return to the home page using [this link](./open?path=$notebook_path_app). If you want to modify the DataFrame before starting the simlation(s) [click here](./open?path=$notebook_path_df)")
+	Markdown.parse("You can return to the home page using [this link](./open?path=$notebook_path_app). If you want to modify the DataFrame before starting the simulation(s) [click here](./open?path=$notebook_path_df)")
 end |> WideCell
 
 # ╔═╡ bc5c65fc-cbaa-4cdf-9c07-44d9a5c58b15
@@ -85,7 +85,7 @@ By default the simulations will run locally, do you want to run it on GPU on the
 # ╔═╡ abbef949-3312-4305-a80e-21e4c9515b6e
 if clu
 	md"""
-Adress of the cluster $(@bind host TextField((50,1),default="login1.baobab.hpc.unige.ch"))
+Address of the cluster $(@bind host TextField((50,1),default="login1.baobab.hpc.unige.ch"))
 
 User name: $(@bind username TextField(default="myusername"))
 
@@ -144,10 +144,10 @@ md"""
 In which folder do you want to save the data ? 
 $(@bind path_to_data TextField((100,1),default=string(homedir()*"/Data/",project_name,"/")))
 	
-In which folder do you want to savec the output file (stdout) ?
+In which folder do you want to save the output files (stdout) ?
 $(@bind path_to_out TextField((100,1),default=string(normpath(joinpath(@__DIR__,"../../out/")))))
 	
-The following code of Julia will be executed on button press, this run simulations sequentially."""
+The following code of Julia will be executed on button press, this runs simulations sequentially."""
 end |> WideCell
 
 # ╔═╡ 120d6803-30c3-4950-a9b3-066574feacda
@@ -231,7 +231,7 @@ if clu && continue_bash
 	SSH_utils.up_dir(username, host, path_to_code, local_code_path)
 	list_of_file_clu_code = SSH_utils.readdir(username, host, path_to_code)
 	println()
-	println("The following files have been upload")
+	println("The following files have been uploaded")
 	for file in list_of_file_clu_code
 		println("       ", file)
 	end
