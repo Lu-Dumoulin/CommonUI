@@ -75,7 +75,7 @@ WideCell(md"""
 
 # ╔═╡ d014e0b2-cb4c-46ac-9ccf-ca65881fa230
 WideCell(md"""
-Which simulation do you want to run ? type all for all
+Which simulation do you want to run ? type `all` for all
 $(@bind indices_sim_str confirm(TextField(default="1")))
 
 By default the simulations will run locally, do you want to run it on GPU on the cluster (baobab) ? $(@bind clu Switch(default=false)) 
