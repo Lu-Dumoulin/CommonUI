@@ -34,9 +34,15 @@ let
 	Markdown.parse("You can return to the home page using [this link](./open?path=$notebook_path_app). If you want return to step 2 [click here](./open?path=$notebook_path_run)")
 end
 
+# ╔═╡ 482b44fb-a89e-4837-82a9-186cd49d89b9
+begin 
+	const project_name = splitpath(pwd())[end-2] # "NameOfProject"
+@bind csv_path TextField((50,1), default="$(normpath(joinpath(homedir(), "Data/$project_name/DF.csv")))") 
+end |> WideCell
+
 # ╔═╡ e482a05e-500b-4361-92b7-5f737b526793
 begin
-	ws = DataWorkspace(normpath(joinpath(homedir(), "Data/PQ_FFT/DF.csv")), ".jld")
+	ws = DataWorkspace(csv_path, ".jld")
 	ws.df
 end |> WideCell 
 
@@ -63,6 +69,7 @@ end |> WideCell
 # ╟─ccd8e669-2024-40e3-8308-e9b9570993aa
 # ╟─1ead4d39-e5e7-4117-9e14-dfdcd92be319
 # ╟─5390cff9-e032-438c-b94a-0f75ea5549ac
+# ╠═482b44fb-a89e-4837-82a9-186cd49d89b9
 # ╟─e482a05e-500b-4361-92b7-5f737b526793
 # ╟─bc5c65fc-cbaa-4cdf-9c07-44d9a5c58b15
 # ╟─6a2eee21-e6a6-442d-9ab4-e5697ea5a958
