@@ -1,7 +1,7 @@
 module SSH_utils
 using RemoteFiles, OpenSSH_jll
 
-export ssh, print_ssh, down, up, up_dir, up_file, mkdir, isloaded
+export ssh, print_ssh, down, up, up_dir, up_file, sync, mkdir, isloaded
 
 ssh(usr, hst, cmd) = readchomp(`ssh $usr\@$hst $cmd`)
 
@@ -12,6 +12,50 @@ down(usr, hst, cluster_file_path, local_directory_path) = run(`scp -r $usr\@$hst
 up(usr, hst, cluster_directory_path, local_file_path) = run(`scp -r $local_file_path $usr\@$hst:$cluster_directory_path`)
 up_dir(usr, hst, cluster_directory_path, local_directory_path) = run(`scp -r """$local_directory_path""" $usr\@$hst:$cluster_directory_path`)
 up_file(usr, hst, cluster_directory_path, local_file_path) = run(`scp $local_file_path $usr\@$hst:$cluster_directory_path`);
+
+# Download a remote directory tree, transferring only files that are missing
+# locally or newer on the cluster. Cross-platform (Windows/macOS/Linux): it uses
+# only `ssh`/`scp` and compares modification times in Julia, so no `rsync` is
+# required. `find -printf` runs on the cluster (Linux), so it is unaffected by
+# the client OS. Returns the number of files downloaded.
+function sync(usr, hst, cluster_directory_path, local_directory_path; nparallel=4)
+    root = endswith(cluster_directory_path, "/") ? cluster_directory_path : cluster_directory_path * "/"
+    raw = ssh(usr, hst, "find $root -type f -printf '%T@\\t%P\\n'")
+    # First pass (local, no network): decide which files are missing or stale.
+    to_download = String[]
+    n_skipped = 0
+    for line in split(raw, "\n", keepempty=false)
+        parts = split(line, "\t")
+        length(parts) == 2 || continue
+        remote_mtime = tryparse(Float64, parts[1])
+        isnothing(remote_mtime) && continue
+        rel = String(parts[2])
+        local_path = joinpath(local_directory_path, rel)
+        if !isfile(local_path) || remote_mtime > mtime(local_path)
+            push!(to_download, rel)
+        else
+            n_skipped += 1
+        end
+    end
+    println("$(length(to_download)) file(s) to download, $n_skipped already up-to-date")
+    # Create the destination sub-folders up front so the parallel tasks below
+    # don't race on mkpath.
+    for rel in to_download
+        mkpath(dirname(joinpath(local_directory_path, rel)))
+    end
+    # Second pass: download up to `nparallel` files at a time. Each `scp` is its
+    # own process and `run` yields while waiting, so the transfers overlap. The
+    # semaphore keeps us under the cluster's concurrent-SSH limit.
+    sem = Base.Semaphore(max(nparallel, 1))
+    @sync for rel in to_download
+        @async Base.acquire(sem) do
+            down(usr, hst, root * rel, dirname(joinpath(local_directory_path, rel)))
+            println("   downloaded  ", rel)
+        end
+    end
+    println("Done: $(length(to_download)) file(s) downloaded into $local_directory_path")
+    return length(to_download)
+end
 
 function mkdir(u, h, cluster_directory_path)
     if ssh(u, h, "test -d $cluster_directory_path  && echo true || test ! -d $cluster_directory_path") == "true"

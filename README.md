@@ -45,6 +45,10 @@ Interactive notebook to launch simulation jobs.
   - Automatic Slurm batch script generation
   - Code upload via SCP using `SSH_utils`
   - Remote directory creation and verification
+- **Download results** — incrementally fetch simulation output from your scratch back to a local folder:
+  - Only files that are **missing locally or newer on the cluster** are transferred (modification-time comparison), so it can be re-run while jobs are still producing output
+  - Adjustable parallelism (1–10 concurrent `scp` transfers) via a slider
+  - Cross-platform (Windows/macOS/Linux): relies only on `ssh`/`scp`, no `rsync` required
 
 **Dependencies:** `PlutoUI`, `PlutoTeachingTools`, `CSV`, `DataFrames`, `ProgressLogging`, `RemoteFiles`, `OpenSSH_jll`
 
@@ -77,6 +81,7 @@ Thin wrapper around `ssh` and `scp` for cluster operations.
 | `up_dir(usr, hst, cluster_dir, local_dir)` | Upload a directory to the cluster |
 | `up_file(usr, hst, cluster_dir, local_file)` | Upload a single file (no `-r` flag) |
 | `down(usr, hst, cluster_path, local_dir)` | Download a file/directory from the cluster |
+| `sync(usr, hst, cluster_dir, local_dir; nparallel=4)` | Download a remote tree, transferring only files missing locally or newer on the cluster, up to `nparallel` at a time |
 | `mkdir(usr, hst, cluster_dir)` | Create a remote directory if it does not exist |
 | `readdir(usr, hst, cluster_dir)` | List files in a remote directory |
 

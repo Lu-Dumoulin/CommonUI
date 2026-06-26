@@ -253,9 +253,35 @@ else
 end |> WideCell
 
 # ╔═╡ 08ca3f40-0135-46fc-85be-6b1b3fed0acd
-if clu 
+if clu
+	remote_data_folder = string("/srv/beegfs/scratch/users/$(username[1])/$username",
+		endswith(data_path_str, "/") ? data_path_str : data_path_str * "/")
 	md"""
-	Download data ...
+## 3. Download data
+
+The simulation results are stored on your scratch at `$remote_data_folder`.
+
+Local destination folder: $(@bind local_data_path TextField((100,1),default=string(homedir(),"/Data/",project_name,"/")))
+
+Number of files to download in parallel: $(@bind nparallel Slider(1:10; default=4, show_value=true))
+
+Switch to download the data from the cluster: $(@bind continue_download Switch())
+
+Only files that are **missing locally or newer on the cluster** are downloaded, so you can re-run this while simulations are still producing output.
+	"""
+else
+	md"""
+	"""
+end |> WideCell
+
+# ╔═╡ 7d2c5e1a-9b34-4e6f-8a01-3c4d5e6f7a8b
+if clu && continue_download
+	mkpath(local_data_path)
+	println("Sync data from $username@$host:$remote_data_folder")
+	println("            to $local_data_path")
+	println()
+	SSH_utils.sync(username, host, remote_data_folder, local_data_path; nparallel=nparallel)
+	md"""
 	"""
 else
 	md"""
@@ -905,6 +931,7 @@ version = "17.7.0+0"
 # ╟─dc7fbcdf-790b-473f-a738-7558c14b0ba8
 # ╟─16a91e7a-9ca7-452b-93cb-ce9a2b6476d3
 # ╟─08ca3f40-0135-46fc-85be-6b1b3fed0acd
+# ╟─7d2c5e1a-9b34-4e6f-8a01-3c4d5e6f7a8b
 # ╟─11b767b5-db54-45f3-855a-2e75f3936e7c
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
