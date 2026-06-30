@@ -35,16 +35,32 @@ let
 end
 
 # ╔═╡ 482b44fb-a89e-4837-82a9-186cd49d89b9
-begin 
+begin
 	const project_name = splitpath(pwd())[end-2] # "NameOfProject"
-@bind csv_path TextField((50,1), default="$(normpath(joinpath(homedir(), "Data/$project_name/DF.csv")))") 
+md"""
+Path to the DataFrame `DF.csv`: $(@bind csv_path TextField((50,1), default="$(normpath(joinpath(homedir(), "Data/$project_name/DF.csv")))"))
+
+Load the file: $(@bind load_csv Switch())
+"""
 end |> WideCell
 
 # ╔═╡ e482a05e-500b-4361-92b7-5f737b526793
 begin
-	ws = DataWorkspace(csv_path, ".jld")
-	ws.df
-end |> WideCell 
+	if !isfile(csv_path)
+md"""
+!!! danger "File not found"
+    `$(csv_path)` does not exist — check the path above.
+"""
+	elseif !load_csv
+md"""
+!!! tip "Ready"
+    Flip the **Load the file** switch to open this `DF.csv`.
+"""
+	else
+		ws = DataWorkspace(csv_path, ".jld")
+		ws.df
+	end
+end |> WideCell
 
 # ╔═╡ bc5c65fc-cbaa-4cdf-9c07-44d9a5c58b15
 WideCell(md"""
@@ -60,9 +76,11 @@ Adapt the dimensions to your screen: scale: $(@bind scale Slider(0.4:0.1:1.0; de
 
 # ╔═╡ 3bf51605-eb94-40ed-b65f-a05ddca608cd
 begin
-
-app = explor_app(ws; height="$height px", scale=scale)
-
+	if @isdefined(ws)
+		explor_app(ws; height="$height px", scale=scale)
+	else
+md"_Load a valid `DF.csv` above (toggle the switch) to start visualising._"
+	end
 end |> WideCell
 
 # ╔═╡ Cell order:
