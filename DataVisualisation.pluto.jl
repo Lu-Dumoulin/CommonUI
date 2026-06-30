@@ -37,10 +37,9 @@ end
 # ╔═╡ 482b44fb-a89e-4837-82a9-186cd49d89b9
 begin
 	const project_name = splitpath(pwd())[end-2] # "NameOfProject"
+	default_csv_name = normpath(joinpath(homedir(), "Data/$project_name/DF.csv"))
 md"""
-Path to the DataFrame `DF.csv`: $(@bind csv_path TextField((50,1), default="$(normpath(joinpath(homedir(), "Data/$project_name/DF.csv")))"))
-
-Data file extension: $(@bind data_ext Select([".jld2", ".jld"]))
+Path to the DataFrame `DF.csv`: $(@bind csv_path TextField((50,1), default=default_csv_name)), and data file extension: $(@bind data_ext Select([".jld2", ".jld"]))
 
 Load the file: $(@bind load_csv Switch())
 """
