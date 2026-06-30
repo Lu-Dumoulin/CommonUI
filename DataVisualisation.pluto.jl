@@ -40,6 +40,8 @@ begin
 md"""
 Path to the DataFrame `DF.csv`: $(@bind csv_path TextField((50,1), default="$(normpath(joinpath(homedir(), "Data/$project_name/DF.csv")))"))
 
+Data file extension: $(@bind data_ext Select([".jld2", ".jld"]))
+
 Load the file: $(@bind load_csv Switch())
 """
 end |> WideCell
@@ -57,7 +59,7 @@ md"""
     Flip the **Load the file** switch to open this `DF.csv`.
 """
 	else
-		ws = DataWorkspace(csv_path, ".jld")
+		ws = DataWorkspace(csv_path, data_ext)
 		ws.df
 	end
 end |> WideCell
