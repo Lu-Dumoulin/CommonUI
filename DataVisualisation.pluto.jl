@@ -22,10 +22,21 @@ macro bind(def, element)
 end
 
 # ╔═╡ ccd8e669-2024-40e3-8308-e9b9570993aa
-import Pkg; Pkg.add(url="https://github.com/Lu-Dumoulin/DataVisualisation.jl")
+begin
+	import Pkg
+	Pkg.activate("datavis"; shared=true)   # dedicated env ~/.julia/environments/datavis (not the global env)
+	let deps = keys(Pkg.project().dependencies)
+		("PlutoUI" in deps && "PlutoTeachingTools" in deps) || Pkg.add(["PlutoUI", "PlutoTeachingTools"])
+		"DataVisualisation" in deps || Pkg.add(url="https://github.com/Lu-Dumoulin/DataVisualisation.jl")
+	end
+	env_ready = true   # token so the `using` cell runs AFTER this one
+end
 
 # ╔═╡ 1ead4d39-e5e7-4117-9e14-dfdcd92be319
-using PlutoUI, PlutoTeachingTools, DataVisualisation
+begin
+	env_ready   # depend on the env-setup cell so this runs after it
+	using PlutoUI, PlutoTeachingTools, DataVisualisation
+end
 
 # ╔═╡ 5390cff9-e032-438c-b94a-0f75ea5549ac
 let
