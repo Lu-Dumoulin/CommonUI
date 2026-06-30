@@ -29,6 +29,7 @@ begin
 		("PlutoUI" in deps && "PlutoTeachingTools" in deps) || Pkg.add(["PlutoUI", "PlutoTeachingTools"])
 		"DataVisualisation" in deps || Pkg.add(url="https://github.com/Lu-Dumoulin/DataVisualisation.jl")
 	end
+	Pkg.update("DataVisualisation")   # TEMP (while developing): pull latest on each open — delete this line once stable
 	env_ready = true   # token so the `using` cell runs AFTER this one
 end
 
