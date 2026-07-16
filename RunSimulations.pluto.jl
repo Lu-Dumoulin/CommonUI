@@ -155,8 +155,8 @@ if clu
 	md"""
 Switch to continue: $(@bind continue_bash Switch()). 
 	
-The bash will be saved as $(sh_path = normpath(@__DIR__,"../sim/")). 
-	
+The bash will be saved at $(sh_path = normpath(@__DIR__,"../sim/")), as $(sh_name). 
+
 The code necessary to run the simulations will be upload on the cluster using `ssh`.
 
 An other confirmation will be required to run simulations. 
@@ -193,7 +193,15 @@ if clu
 			write(file, bash_string)
 		end
 		println(" Bash saved in $sh_path as $sh_name ")
-	end
+md"""
+If you already ran simulations in the date directory, do you want to clear it ? $(@bind rm_data Switch())
+
+Switch to submit jobs on the cluster: $(@bind run_clu Switch())
+"""
+	else
+md"""
+"""
+end
 else
 	if continue_local
 		mkpath(path_to_out)
@@ -212,13 +220,26 @@ else
 			end
 		end
 	end
-end;
+md""" 
+"""
+end |> WideCell
+
+# ╔═╡ f8d0bc70-f58e-4045-b1c8-9c58c2627359
+if clu && rm_data
+	path_to_data_folder = string("/srv/beegfs/scratch/users/$(username[1])/$username",data_path_str)
+	rm_dir(username, host, path_to_data_folder)
+	md"""
+	"""
+else
+	md"""
+	"""
+end |> WideCell
 
 # ╔═╡ 16a91e7a-9ca7-452b-93cb-ce9a2b6476d3
-if clu && continue_bash
+if clu && run_clu
 	local_code_path = normpath(joinpath(@__DIR__, "../sim/"))*"."
 	path_to_code = string("/home/users/$(username[1])/$username",code_path_str)
-	path_to_data_folder = string("/srv/beegfs/scratch/users/$(username[1])/$username",data_path_str)
+	# path_to_data_folder = string("/srv/beegfs/scratch/users/$(username[1])/$username",data_path_str)
 
 	println("Create $path_to_code on $username@$host")
 	SSH_utils.mkdir(username, host, path_to_code)
@@ -235,8 +256,9 @@ if clu && continue_bash
 	for file in list_of_file_clu_code
 		println("       ", file)
 	end
-	
-	SSH_utils.print_ssh(username, host, "cd $path_to_data_folder")# && sbatch $sh_name")
+
+	SSH_utils.up_file(username, host, path_to_data_folder, string(local_code_path[1:end-1], sh_name))
+	SSH_utils.print_ssh(username, host, "cd $path_to_data_folder && sbatch $sh_name")
 	SSH_utils.print_ssh(username, host, "squeue --me") 
 	md"""
 	"""
@@ -259,15 +281,28 @@ if clu
 	md"""
 ## 3. Download data
 
-The simulation results are stored on your scratch at `$remote_data_folder`.
+The simulation results are stored on your scratch at $remote_data_folder.
 
 Local destination folder: $(@bind local_data_path TextField((100,1),default=string(homedir(),"/Data/",project_name,"/")))
 
+If you have older simulations saved, you can clear this directory by switching: $(@bind rm_local Switch())
+	
 Number of files to download in parallel: $(@bind nparallel Slider(1:10; default=4, show_value=true))
 
 Switch to download the data from the cluster: $(@bind continue_download Switch())
 
 Only files that are **missing locally or newer on the cluster** are downloaded, so you can re-run this while simulations are still producing output.
+	"""
+else
+	md"""
+	"""
+end |> WideCell
+
+# ╔═╡ 47ed76c1-e1f3-4a2c-8334-45e36b53b0b3
+if clu && rm_local
+	isdir(local_data_path) ? rm(local_data_path, recursive=true, force=true) : nothing
+	mkpath(local_data_path)
+	md"""
 	"""
 else
 	md"""
@@ -929,8 +964,10 @@ version = "17.7.0+0"
 # ╟─e17bf885-46d3-4f03-b9ce-ff178b4ad6ea
 # ╟─120d6803-30c3-4950-a9b3-066574feacda
 # ╟─dc7fbcdf-790b-473f-a738-7558c14b0ba8
+# ╟─f8d0bc70-f58e-4045-b1c8-9c58c2627359
 # ╟─16a91e7a-9ca7-452b-93cb-ce9a2b6476d3
 # ╟─08ca3f40-0135-46fc-85be-6b1b3fed0acd
+# ╟─47ed76c1-e1f3-4a2c-8334-45e36b53b0b3
 # ╟─7d2c5e1a-9b34-4e6f-8a01-3c4d5e6f7a8b
 # ╟─11b767b5-db54-45f3-855a-2e75f3936e7c
 # ╟─00000000-0000-0000-0000-000000000001

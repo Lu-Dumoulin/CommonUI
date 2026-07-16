@@ -83,6 +83,7 @@ Thin wrapper around `ssh` and `scp` for cluster operations.
 | `down(usr, hst, cluster_path, local_dir)` | Download a file/directory from the cluster |
 | `sync(usr, hst, cluster_dir, local_dir; nparallel=4)` | Download a remote tree, transferring only files missing locally or newer on the cluster, up to `nparallel` at a time |
 | `mkdir(usr, hst, cluster_dir)` | Create a remote directory if it does not exist |
+| `rm_dir(usr, hst, cluster_dir)` | Remove a remote directory recursively (`rm -rf`), with guards against unsafe paths |
 | `readdir(usr, hst, cluster_dir)` | List files in a remote directory |
 
 ---

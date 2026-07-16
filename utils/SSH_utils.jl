@@ -1,7 +1,7 @@
 module SSH_utils
 using RemoteFiles, OpenSSH_jll
 
-export ssh, print_ssh, down, up, up_dir, up_file, sync, mkdir, isloaded
+export ssh, print_ssh, down, up, up_dir, up_file, sync, mkdir, rm_dir, isloaded
 
 ssh(usr, hst, cmd) = readchomp(`ssh $usr\@$hst $cmd`)
 
@@ -64,6 +64,22 @@ function mkdir(u, h, cluster_directory_path)
         ssh(u, h, "mkdir -p $cluster_directory_path")
         println("Create $cluster_directory_path")
     end
+end
+
+# Remove a remote directory (recursively, `rm -rf`). A few sanity checks guard
+# against wiping the wrong thing: the path must be non-empty, absolute, and not
+# the filesystem root or the user's bare home directory.
+function rm_dir(u, h, cluster_directory_path)
+    path = strip(cluster_directory_path)
+    if isempty(path) || path in ("/", "~", "~/", "/home", "/home/")
+        error("rm_dir refused: unsafe path $(repr(cluster_directory_path))")
+    end
+    if ssh(u, h, "test -d $path && echo true || echo false") != "true"
+        println("$path does not exist")
+        return nothing
+    end
+    ssh(u, h, "rm -rf $path")
+    println("Removed $path")
 end
 
 readdir(u, h, cluster_directory_path) = split(ssh(u, h, "ls $cluster_directory_path"), "\n", keepempty=false)
