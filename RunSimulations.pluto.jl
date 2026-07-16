@@ -194,7 +194,7 @@ if clu
 		end
 		println(" Bash saved in $sh_path as $sh_name ")
 md"""
-If you already ran simulations in the date directory, do you want to clear it ? $(@bind rm_data Switch())
+If you already ran simulations in the data directory, do you want to clear it ? $(@bind rm_data Switch())
 
 Switch to submit jobs on the cluster: $(@bind run_clu Switch())
 """
@@ -205,6 +205,7 @@ end
 else
 	if continue_local
 		mkpath(path_to_out)
+		mkpath(path_to_data)
 		cp("../sim/DF.csv", path_to_data*"DF.csv", force=true)
 		@progress for i in list_of_sim
 			println("Running job $i")
@@ -225,9 +226,11 @@ md"""
 end |> WideCell
 
 # ╔═╡ f8d0bc70-f58e-4045-b1c8-9c58c2627359
-if clu && rm_data
+if clu 
 	path_to_data_folder = string("/srv/beegfs/scratch/users/$(username[1])/$username",data_path_str)
-	rm_dir(username, host, path_to_data_folder)
+	if rm_data
+		SSH_utils.rm_dir(username, host, path_to_data_folder)
+	end
 	md"""
 	"""
 else
