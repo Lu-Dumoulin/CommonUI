@@ -280,6 +280,29 @@ else
 	end
 end |> WideCell
 
+# ╔═╡ c1a2b3d4-1e2f-4a3b-8c4d-5e6f7a8b9c0d
+WideCell(md"""
+### Cluster queue
+
+Query the scheduler over SSH (`squeue --me`): $(@bind squeue_refresh Button("🔄 Refresh"))
+""")
+
+# ╔═╡ d2b3c4e5-2f3a-4b5c-9d6e-7f8a9b0c1d2e
+let
+	squeue_refresh                     # re-run this cell each time the button is pressed
+	out = if clu
+		try
+			SSH_utils.squeue(username, host)
+		catch e
+			"could not query the cluster — check the user/host in §2 and that ssh access works:\n" *
+			sprint(showerror, e)
+		end
+	else
+		"Enable cluster mode in §2 (the GPU/cluster switch) to query squeue."
+	end
+	WideCell(Markdown.MD(Markdown.Code(out)))
+end
+
 # ╔═╡ 08ca3f40-0135-46fc-85be-6b1b3fed0acd
 if clu
 	remote_data_folder = string("/srv/beegfs/scratch/users/$(username[1])/$username",
@@ -972,6 +995,8 @@ version = "17.7.0+0"
 # ╟─dc7fbcdf-790b-473f-a738-7558c14b0ba8
 # ╟─f8d0bc70-f58e-4045-b1c8-9c58c2627359
 # ╟─16a91e7a-9ca7-452b-93cb-ce9a2b6476d3
+# ╟─c1a2b3d4-1e2f-4a3b-8c4d-5e6f7a8b9c0d
+# ╟─d2b3c4e5-2f3a-4b5c-9d6e-7f8a9b0c1d2e
 # ╟─08ca3f40-0135-46fc-85be-6b1b3fed0acd
 # ╟─47ed76c1-e1f3-4a2c-8334-45e36b53b0b3
 # ╟─7d2c5e1a-9b34-4e6f-8a01-3c4d5e6f7a8b

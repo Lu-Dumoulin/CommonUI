@@ -1,11 +1,16 @@
 module SSH_utils
 using RemoteFiles, OpenSSH_jll
 
-export ssh, print_ssh, down, up, up_dir, up_file, sync, mkdir, rm_dir, isloaded
+export ssh, print_ssh, squeue, down, up, up_dir, up_file, sync, mkdir, rm_dir, isloaded
 
 ssh(usr, hst, cmd) = readchomp(`ssh $usr\@$hst $cmd`)
 
 print_ssh(usr, hst, cmd) =  println(ssh(usr, hst, cmd))
+
+# Query the Slurm scheduler over SSH and RETURN the output as a String (unlike print_ssh,
+# which only prints), so it can be displayed/refreshed in a notebook cell. Default
+# `opt="--me"` lists the caller's own jobs.
+squeue(usr, hst; opt="--me") = ssh(usr, hst, "squeue $opt")
 
 down(usr, hst, cluster_file_path, local_directory_path) = run(`scp -r $usr\@$hst:$cluster_file_path $local_directory_path`)
 
