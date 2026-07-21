@@ -195,13 +195,16 @@ if clu
 		println(" Bash saved in $sh_path as $sh_name ")
 md"""
 If you already ran simulations in the data directory, do you want to clear it ? $(@bind rm_data Switch())
-
+		
 Switch to submit jobs on the cluster: $(@bind run_clu Switch())
 """
 	else
 md"""
+If you already ran simulations in the data directory, do you want to clear it ? $(@bind rm_data Switch())
+		
+Switch to submit jobs on the cluster: $(@bind run_clu Switch())
 """
-end
+	end
 else
 	if continue_local
 		mkpath(path_to_out)
