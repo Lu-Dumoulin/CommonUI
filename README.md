@@ -45,6 +45,8 @@ Interactive notebook to launch simulation jobs.
   - Automatic Slurm batch script generation
   - Code upload via SCP using `SSH_utils`
   - Remote directory creation and verification
+  - **Single reusable SSH connection** — a switch (macOS/Linux) that routes every submit / queue / download through one shared login (`SSH_utils.ssh_open`), avoiding the cluster's *too many logins* throttle
+  - **Live queue view** — a `squeue --me` panel with a refresh button, shown just before the download step
 - **Download results** — incrementally fetch simulation output from your scratch back to a local folder:
   - Only files that are **missing locally or newer on the cluster** are transferred (modification-time comparison), so it can be re-run while jobs are still producing output
   - Adjustable parallelism (1–10 concurrent `scp` transfers) via a slider
@@ -77,6 +79,9 @@ Thin wrapper around `ssh` and `scp` for cluster operations.
 |---|---|
 | `ssh(usr, hst, cmd)` | Run a remote command and return output as a string |
 | `print_ssh(usr, hst, cmd)` | Run a remote command and print the output |
+| `squeue(usr, hst; opt="--me")` | Query the Slurm scheduler and return the output as a string (default `--me` = your own jobs) |
+| `ssh_open(usr, hst)` | Open a shared **master** SSH connection that later `ssh`/`scp` reuse (see multiplexing note); returns the remote `user@host` |
+| `ssh_close(usr, hst)` | Close the shared master connection and revert to one login per call |
 | `up(usr, hst, cluster_dir, local_file)` | Upload a file to the cluster |
 | `up_dir(usr, hst, cluster_dir, local_dir)` | Upload a directory to the cluster |
 | `up_file(usr, hst, cluster_dir, local_file)` | Upload a single file (no `-r` flag) |
@@ -85,6 +90,8 @@ Thin wrapper around `ssh` and `scp` for cluster operations.
 | `mkdir(usr, hst, cluster_dir)` | Create a remote directory if it does not exist |
 | `rm_dir(usr, hst, cluster_dir)` | Remove a remote directory recursively (`rm -rf`), with guards against unsafe paths |
 | `readdir(usr, hst, cluster_dir)` | List files in a remote directory |
+
+**Connection multiplexing (fewer logins).** By default each `ssh`/`scp` opens its own login, so a busy submit/download session can trip the cluster's *too many logins* rate-limit. Call `ssh_open(usr, hst)` **once** to establish a shared master connection (OpenSSH `ControlMaster`); every subsequent `ssh`/`scp` — including the parallel downloads in `sync` — then reuses it as a **single login**. `ssh_close` tears it down. This is opt-in and additive: without `ssh_open`, behaviour is unchanged. Supported on **macOS/Linux** only (Windows OpenSSH has no `ControlMaster`, where calls stay one-login-each). Pair it with an `ssh-agent` (`ssh-add` your key once) so a passphrase-protected key is unlocked only once.
 
 ---
 
