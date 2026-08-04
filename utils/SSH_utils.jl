@@ -1,22 +1,63 @@
 module SSH_utils
 using RemoteFiles, OpenSSH_jll
 
-export ssh, print_ssh, squeue, down, up, up_dir, up_file, sync, mkdir, rm_dir, isloaded
+export ssh, print_ssh, squeue, down, up, up_dir, up_file, sync, mkdir, rm_dir, isloaded,
+       ssh_open, ssh_close
 
-ssh(usr, hst, cmd) = readchomp(`ssh $usr\@$hst $cmd`)
+# --- Optional SSH connection multiplexing (opt-in, fully additive) -----------------------
+# `SSH_OPTS` is EMPTY by default, so every function below behaves EXACTLY as before — one
+# login per ssh/scp — on every platform, including Windows. Nothing here changes unless you
+# opt in by calling `ssh_open(usr, hst)`.
+#
+# After `ssh_open` (on macOS/Linux) `SSH_OPTS` holds OpenSSH ControlMaster options, so all
+# subsequent ssh/scp — including the parallel downloads in `sync` — REUSE one shared master
+# connection: a whole submit/sync session becomes a single login and no longer trips the
+# cluster's "too many logins" rate-limit. The master is kept alive for `CONTROL_PERSIST`
+# seconds after the last use. `ssh_close` tears it down and reverts to the default behaviour.
+#
+# Windows' bundled OpenSSH has no ControlMaster, so there `ssh_open` only checks connectivity
+# and leaves `SSH_OPTS` empty — calls stay one-login-each and keep working. Complement with an
+# ssh-agent (`ssh-add` your key once) so a passphrase-protected key is unlocked a single time.
+const SSH_OPTS = Ref{Cmd}(``)
+const CM_DIR = joinpath(homedir(), ".ssh", "controlmasters")
+const CONTROL_PERSIST = 600   # seconds the master stays alive after the last connection
+
+ssh(usr, hst, cmd) = readchomp(`ssh $(SSH_OPTS[]) $usr\@$hst $cmd`)
 
 print_ssh(usr, hst, cmd) =  println(ssh(usr, hst, cmd))
+
+# Open (or refresh) the shared master connection so the following ssh/scp all reuse one
+# login; returns the remote `user@host` as a connectivity check. On Windows it just verifies
+# connectivity (multiplexing unsupported) and leaves the one-login-per-call behaviour intact.
+function ssh_open(usr, hst)
+    if !Sys.iswindows()
+        isdir(CM_DIR) || mkpath(CM_DIR)
+        # %C = short fixed-length hash of (localhost, remotehost, port, user); keeps the
+        # control-socket path under the ~104-char Unix-socket limit.
+        SSH_OPTS[] = `-o ControlMaster=auto -o ControlPath=$(joinpath(CM_DIR, "%C")) -o ControlPersist=$(CONTROL_PERSIST)`
+    end
+    ssh(usr, hst, "echo \$(whoami)@\$(hostname)")   # authenticates once and opens the master
+end
+
+# Close the shared master connection (if any) and revert to one-login-per-call behaviour.
+function ssh_close(usr, hst)
+    if !Sys.iswindows() && !isempty(SSH_OPTS[].exec)
+        try; run(`ssh $(SSH_OPTS[]) -O exit $usr\@$hst`); catch; end
+    end
+    SSH_OPTS[] = ``
+    nothing
+end
 
 # Query the Slurm scheduler over SSH and RETURN the output as a String (unlike print_ssh,
 # which only prints), so it can be displayed/refreshed in a notebook cell. Default
 # `opt="--me"` lists the caller's own jobs.
 squeue(usr, hst; opt="--me") = ssh(usr, hst, "squeue $opt")
 
-down(usr, hst, cluster_file_path, local_directory_path) = run(`scp -r $usr\@$hst:$cluster_file_path $local_directory_path`)
+down(usr, hst, cluster_file_path, local_directory_path) = run(`scp $(SSH_OPTS[]) -r $usr\@$hst:$cluster_file_path $local_directory_path`)
 
-up(usr, hst, cluster_directory_path, local_file_path) = run(`scp -r $local_file_path $usr\@$hst:$cluster_directory_path`)
-up_dir(usr, hst, cluster_directory_path, local_directory_path) = run(`scp -r """$local_directory_path""" $usr\@$hst:$cluster_directory_path`)
-up_file(usr, hst, cluster_directory_path, local_file_path) = run(`scp $local_file_path $usr\@$hst:$cluster_directory_path`);
+up(usr, hst, cluster_directory_path, local_file_path) = run(`scp $(SSH_OPTS[]) -r $local_file_path $usr\@$hst:$cluster_directory_path`)
+up_dir(usr, hst, cluster_directory_path, local_directory_path) = run(`scp $(SSH_OPTS[]) -r """$local_directory_path""" $usr\@$hst:$cluster_directory_path`)
+up_file(usr, hst, cluster_directory_path, local_file_path) = run(`scp $(SSH_OPTS[]) $local_file_path $usr\@$hst:$cluster_directory_path`);
 
 # Download a remote directory tree, transferring only files that are missing
 # locally or newer on the cluster. Cross-platform (Windows/macOS/Linux): it uses

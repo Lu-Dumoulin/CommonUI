@@ -85,9 +85,9 @@ By default the simulations will run locally, do you want to run it on GPU on the
 # ╔═╡ abbef949-3312-4305-a80e-21e4c9515b6e
 if clu
 	md"""
-Address of the cluster $(@bind host TextField((50,1),default="login1.baobab.hpc.unige.ch"))
+Address of the cluster $(@bind host confirm(TextField((50,1),default="login1.baobab.hpc.unige.ch")))
 
-User name: $(@bind username TextField(default="myusername"))
+User name: $(@bind username confirm(TextField(default="myusername")))
 
 To run the simulations on the cluster the first step is to generate the bash file.
 	
@@ -103,6 +103,39 @@ else
 	By default it would run on CPU using `Threads.jl`, do you want to use the GPU ? $(@bind gpu Switch()).
 	"""
 end |> WideCell
+
+# ╔═╡ e5f6a7b8-3c4d-4e5f-9a0b-1c2d3e4f5a6b
+if clu
+	md"""
+**Reuse a single SSH connection** — avoids the *too many logins* throttle by routing every
+submit / `squeue` / download through one shared login (ControlMaster multiplexing; pair it
+with an `ssh-agent`, i.e. `ssh-add` your key once, so a passphrase key unlocks a single
+time). Switch on before submitting:
+
+Reuse one SSH connection: $(@bind ssh_connected Switch())
+"""
+else
+	md""
+end |> WideCell
+
+# ╔═╡ f6a7b8c9-4d5e-4f6a-8b1c-2d3e4f5a6b7c
+if clu
+	msg = if ssh_connected
+		try
+			"✅ Connected as `" * SSH_utils.ssh_open(username, host) *
+			"` — submit, `squeue` and download now reuse this single login."
+		catch e
+			"⚠ Connection failed — check the user/host above and that `ssh " * username * "@" * host *
+			"` works from a terminal.\n\n```\n" * sprint(showerror, e) * "\n```"
+		end
+	else
+		SSH_utils.ssh_close(username, host)
+		"*Switch on above to open one reusable SSH connection (recommended before submitting).*"
+	end
+	WideCell(Markdown.parse(msg))
+else
+	WideCell(md"")
+end
 
 # ╔═╡ e17bf885-46d3-4f03-b9ce-ff178b4ad6ea
 if clu
@@ -990,6 +1023,8 @@ version = "17.7.0+0"
 # ╟─bc5c65fc-cbaa-4cdf-9c07-44d9a5c58b15
 # ╟─d014e0b2-cb4c-46ac-9ccf-ca65881fa230
 # ╟─abbef949-3312-4305-a80e-21e4c9515b6e
+# ╟─e5f6a7b8-3c4d-4e5f-9a0b-1c2d3e4f5a6b
+# ╟─f6a7b8c9-4d5e-4f6a-8b1c-2d3e4f5a6b7c
 # ╟─e17bf885-46d3-4f03-b9ce-ff178b4ad6ea
 # ╟─120d6803-30c3-4950-a9b3-066574feacda
 # ╟─dc7fbcdf-790b-473f-a738-7558c14b0ba8
