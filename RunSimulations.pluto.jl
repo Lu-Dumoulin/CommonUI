@@ -105,9 +105,9 @@ else
 end |> WideCell
 
 # ╔═╡ e5f6a7b8-3c4d-4e5f-9a0b-1c2d3e4f5a6b
-if clu
+if clu && !Sys.iswindows()
 	md"""
-**Reuse a single SSH connection** — avoids the *too many logins* throttle by routing every
+**Reuse a single SSH connection (MacOS and Linux only)** — avoids the *too many logins* throttle by routing every
 submit / `squeue` / download through one shared login (ControlMaster multiplexing; pair it
 with an `ssh-agent`, i.e. `ssh-add` your key once, so a passphrase key unlocks a single
 time). Switch on before submitting:
@@ -119,7 +119,7 @@ else
 end |> WideCell
 
 # ╔═╡ f6a7b8c9-4d5e-4f6a-8b1c-2d3e4f5a6b7c
-if clu
+if clu && !Sys.iswindows()
 	msg = if ssh_connected
 		try
 			"✅ Connected as `" * SSH_utils.ssh_open(username, host) *
