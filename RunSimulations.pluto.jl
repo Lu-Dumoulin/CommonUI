@@ -153,7 +153,7 @@ if clu
 #SBATCH --constraint=$gpu_str
 
 export use_gpu=true
-export path_to_data=/srv/beegfs/scratch/users/$(username[1])/$username$data_path_str
+export path_to_data=/srv/beegfs/scratch/users/$(username[1])/$username$data_path_str\$SLURM_ARRAY_TASK_ID/
 
 mkdir -p \$path_to_data
 
