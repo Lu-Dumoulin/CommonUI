@@ -480,11 +480,12 @@ if clu && delete_flagged
 	if isempty(flagged_files)
 md"_Nothing flagged — run a check above first._"
 	else
-		nd = 0
-		for p in flagged_files
-			isfile(p) && (rm(p; force=true); nd += 1)
+		let nd = 0
+			for p in flagged_files
+				isfile(p) && (rm(p; force=true); nd += 1)
+			end
+			Markdown.parse("🗑️ Deleted **$nd** of $(length(flagged_files)) flagged file(s) under `$(local_data_path)`. Now re-run the **download** switch above to re-fetch them.")
 		end
-		Markdown.parse("🗑️ Deleted **$nd** of $(length(flagged_files)) flagged file(s) under `$(local_data_path)`. Now re-run the **download** switch above to re-fetch them.")
 	end
 else
 md""""""
