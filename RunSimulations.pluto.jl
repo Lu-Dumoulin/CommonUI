@@ -296,6 +296,9 @@ if clu && run_clu
 		println("       ", file)
 	end
 
+	println("Upload DF.csv and $sh_name to $path_to_data_folder")
+	SSH_utils.up_file(username, host, path_to_data_folder, string(local_code_path[1:end-1], "DF.csv"))
+
 	SSH_utils.up_file(username, host, path_to_data_folder, string(local_code_path[1:end-1], sh_name))
 	SSH_utils.print_ssh(username, host, "cd $path_to_data_folder && sbatch $sh_name")
 	SSH_utils.print_ssh(username, host, "squeue --me") 
@@ -507,6 +510,7 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 OpenSSH_jll = "9bd350c2-7e96-507f-8002-3f2e150b4e1b"
 PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
@@ -516,6 +520,7 @@ RemoteFiles = "cbe49d4c-5af1-5b60-bb70-0a60aa018e1b"
 [compat]
 CSV = "~0.10.16"
 DataFrames = "~1.8.2"
+JLD2 = "~0.6.5"
 OpenSSH_jll = "~10.3.1"
 PlutoTeachingTools = "~0.4.7"
 PlutoUI = "~0.7.81"
@@ -529,7 +534,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "24546df8d1ba705b1eaac9b17c84df931103dd87"
+project_hash = "44552950e1a4ecb021b298e57e8ba21a8c1a9b79"
 
 [[deps.AbstractPlutoDingetjes]]
 git-tree-sha1 = "6c3913f4e9bdf6ba3c08041a446fb1332716cbc2"
@@ -558,6 +563,23 @@ deps = ["CodecZlib", "Dates", "FilePathsBase", "InlineStrings", "Mmap", "Parsers
 git-tree-sha1 = "8d8e0b0f350b8e1c91420b5e64e5de774c2f0f4d"
 uuid = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 version = "0.10.16"
+
+[[deps.ChunkCodecCore]]
+git-tree-sha1 = "1a3ad7e16a321667698a19e77362b35a1e94c544"
+uuid = "0b6fb165-00bc-4d37-ab8b-79f91016dbe1"
+version = "1.0.1"
+
+[[deps.ChunkCodecLibZlib]]
+deps = ["ChunkCodecCore", "Zlib_jll"]
+git-tree-sha1 = "d4101e848e8d3f585d61d244c2fe0c80a70e6b3b"
+uuid = "4c0bbee4-addc-4d73-81a0-b6caacae83c8"
+version = "1.1.0"
+
+[[deps.ChunkCodecLibZstd]]
+deps = ["ChunkCodecCore", "Zstd_jll"]
+git-tree-sha1 = "34d9873079e4cb3d0c62926a225136824677073f"
+uuid = "55437552-ac27-4d47-9aa3-63184e8fd398"
+version = "1.0.0"
 
 [[deps.CodecZlib]]
 deps = ["TranscodingStreams", "Zlib_jll"]
@@ -692,6 +714,11 @@ git-tree-sha1 = "51059d23c8bb67911a2e6fd5130229113735fc7e"
 uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 version = "1.11.0"
 
+[[deps.HashArrayMappedTries]]
+git-tree-sha1 = "2eaa69a7cab70a52b9687c8bf950a5a93ec895ae"
+uuid = "076d061b-32b6-4027-95e0-9a2c6f6d7e74"
+version = "0.2.0"
+
 [[deps.Hyperscript]]
 deps = ["Test"]
 git-tree-sha1 = "179267cfa5e712760cd43dcae385d7ea90cc25a4"
@@ -737,6 +764,18 @@ version = "1.3.1"
 git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
 uuid = "82899510-4779-5014-852e-03e436cf321d"
 version = "1.0.0"
+
+[[deps.JLD2]]
+deps = ["ChunkCodecLibZlib", "ChunkCodecLibZstd", "FileIO", "MacroTools", "Mmap", "OrderedCollections", "PrecompileTools", "ScopedValues"]
+git-tree-sha1 = "9ebadf3f8f0de07031359917549bbdadc23f5dc3"
+uuid = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+version = "0.6.5"
+
+    [deps.JLD2.extensions]
+    UnPackExt = "UnPack"
+
+    [deps.JLD2.weakdeps]
+    UnPack = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
 
 [[deps.JLLWrappers]]
 deps = ["Artifacts", "Preferences"]
@@ -993,6 +1032,12 @@ version = "1.3.1"
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.7.0"
 
+[[deps.ScopedValues]]
+deps = ["HashArrayMappedTries", "Logging"]
+git-tree-sha1 = "67a144433c4ce877ee6d1ada69a124d6b1ecf7be"
+uuid = "7e506255-f358-4e82-b7e4-beb19740aa63"
+version = "1.6.2"
+
 [[deps.SentinelArrays]]
 deps = ["Dates", "Random"]
 git-tree-sha1 = "084c47c7c5ce5cfecefa0a98dff69eb3646b5a80"
@@ -1106,6 +1151,12 @@ version = "1.6.1"
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
 version = "1.3.1+2"
+
+[[deps.Zstd_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "446b23e73536f84e8037f5dce465e92275f6a308"
+uuid = "3161d3a3-bdf6-5164-811a-617609db77b4"
+version = "1.5.7+1"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
