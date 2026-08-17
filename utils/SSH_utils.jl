@@ -1,8 +1,8 @@
 module SSH_utils
 using RemoteFiles, OpenSSH_jll
 
-export ssh, print_ssh, squeue, down, up, up_dir, up_file, sync, mkdir, rm_dir, isloaded,
-       ssh_open, ssh_close
+export ssh, print_ssh, squeue, down, up, up_dir, up_file, sync, check_download_sizes,
+       mkdir, rm_dir, isloaded, ssh_open, ssh_close
 
 # --- Optional SSH connection multiplexing (opt-in, fully additive) -----------------------
 # `SSH_OPTS` is EMPTY by default, so every function below behaves EXACTLY as before — one
@@ -101,6 +101,31 @@ function sync(usr, hst, cluster_directory_path, local_directory_path; nparallel=
     end
     println("Done: $(length(to_download)) file(s) downloaded into $local_directory_path")
     return length(to_download)
+end
+
+# Compare each remote file's byte size to its local copy — catches truncated / incomplete
+# downloads (a dropped connection) and files missing locally. Returns `(n, bad)`, where `bad`
+# is a vector of `(relative_path, reason)`. One remote `find`; reads nothing locally beyond
+# `filesize`, so it stays fast even for large trees.
+function check_download_sizes(usr, hst, remote_directory_path, local_directory_path)
+    root = endswith(remote_directory_path, "/") ? remote_directory_path : remote_directory_path * "/"
+    raw = ssh(usr, hst, "find $root -type f -printf '%s\\t%P\\n'")
+    bad = Tuple{String,String}[]
+    n = 0
+    for line in split(raw, "\n", keepempty=false)
+        parts = split(line, "\t")
+        length(parts) == 2 || continue
+        rsize = tryparse(Int, parts[1])
+        isnothing(rsize) && continue
+        rel = String(parts[2]); n += 1
+        lpath = joinpath(local_directory_path, rel)
+        if !isfile(lpath)
+            push!(bad, (rel, "missing locally"))
+        elseif filesize(lpath) != rsize
+            push!(bad, (rel, "local $(filesize(lpath)) B ≠ cluster $rsize B"))
+        end
+    end
+    return (n = n, bad = bad)
 end
 
 function mkdir(u, h, cluster_directory_path)

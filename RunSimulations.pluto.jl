@@ -23,7 +23,7 @@ end
 
 # ╔═╡ 1ead4d39-e5e7-4117-9e14-dfdcd92be319
 begin
-	using PlutoUI, PlutoTeachingTools, RemoteFiles, OpenSSH_jll, DataFrames, CSV, ProgressLogging
+	using PlutoUI, PlutoTeachingTools, RemoteFiles, OpenSSH_jll, DataFrames, CSV, ProgressLogging, JLD2
 	try
 		include("utils/UI_utils.jl")
 		@info "Module UI_utils is loaded"
@@ -385,8 +385,76 @@ else
 	"""
 end |> WideCell
 
+# ╔═╡ f1aa0001-2b3c-4d5e-8f60-000000000001
+# Deep check (slower): open every local `.jld2` and read its datasets — catches files that
+# are the right size but internally corrupt (e.g. the scratch filled up mid-write, so the copy
+# on the cluster is broken too and re-downloading won't help). The fast size comparison against
+# the cluster lives in `SSH_utils.check_download_sizes`.
+function check_local_integrity(local_root)
+	bad = Tuple{String,String}[]; n = 0
+	for (r, _, fs) in walkdir(local_root), f in fs
+		endswith(f, ".jld2") || continue
+		p = joinpath(r, f); n += 1
+		if filesize(p) == 0
+			push!(bad, (relpath(p, local_root), "0 bytes")); continue
+		end
+		try
+			jldopen(p, "r") do io
+				for k in keys(io); read(io, k); end
+			end
+		catch e
+			push!(bad, (relpath(p, local_root), first(split(sprint(showerror, e), "\n"))))
+		end
+	end
+	return (n = n, bad = bad)
+end
+
+# ╔═╡ f1aa0001-2b3c-4d5e-8f60-000000000002
+if clu
+md"""
+### Check downloaded files
+
+A dropped SSH connection or a full scratch can leave **incomplete / corrupted** files.
+
+- **Size check** *(fast)* — compare every file's size on the cluster vs. locally (catches truncated or missing downloads): $(@bind check_sizes Switch())
+- **Deep check** *(slower)* — open every local `.jld2` and read it (catches files that are the right size but internally corrupt): $(@bind deep_check Switch())
+"""
+else
+md""""""
+end |> WideCell
+
+# ╔═╡ f1aa0001-2b3c-4d5e-8f60-000000000003
+if clu && (check_sizes || deep_check)
+	if !isdir(local_data_path)
+		Markdown.parse("**Folder not found:** `$(local_data_path)` — download the data first.")
+	else
+		msgs = String[]
+		if check_sizes
+			r = SSH_utils.check_download_sizes(username, host, remote_data_folder, local_data_path)
+			if isempty(r.bad)
+				push!(msgs, "✅ **Size check** — all $(r.n) file(s) match the cluster.")
+			else
+				body = join(["- `$rel` — $why" for (rel, why) in r.bad], "\n")
+				push!(msgs, "⚠️ **Size check** — $(length(r.bad)) of $(r.n) file(s) differ. Delete them and re-run the download switch — the sync re-fetches missing / mismatched files:\n\n$body")
+			end
+		end
+		if deep_check
+			r = check_local_integrity(local_data_path)
+			if isempty(r.bad)
+				push!(msgs, "✅ **Deep check** — all $(r.n) local `.jld2` file(s) open and read cleanly.")
+			else
+				body = join(["- `$rel` — $why" for (rel, why) in r.bad], "\n")
+				push!(msgs, "⚠️ **Deep check** — $(length(r.bad)) of $(r.n) `.jld2` file(s) are corrupt. Re-download them; if the cluster copy is also broken (size matches), that simulation must be re-run:\n\n$body")
+			end
+		end
+		Markdown.parse(join(msgs, "\n\n---\n\n"))
+	end
+else
+md""""""
+end |> WideCell
+
 # ╔═╡ 11b767b5-db54-45f3-855a-2e75f3936e7c
-if clu 
+if clu
 	let
 	notebook_path_visu = joinpath(@__DIR__, "DataVisualisation.pluto.jl")
 	Markdown.parse("Once the jld/jld2 files are saved, you can use [this link](./open?path=$notebook_path_visu) to visualise the data.")
@@ -1035,6 +1103,9 @@ version = "17.7.0+0"
 # ╟─08ca3f40-0135-46fc-85be-6b1b3fed0acd
 # ╟─47ed76c1-e1f3-4a2c-8334-45e36b53b0b3
 # ╟─7d2c5e1a-9b34-4e6f-8a01-3c4d5e6f7a8b
+# ╟─f1aa0001-2b3c-4d5e-8f60-000000000001
+# ╟─f1aa0001-2b3c-4d5e-8f60-000000000002
+# ╟─f1aa0001-2b3c-4d5e-8f60-000000000003
 # ╟─11b767b5-db54-45f3-855a-2e75f3936e7c
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
