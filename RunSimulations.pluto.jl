@@ -424,30 +424,67 @@ md""""""
 end |> WideCell
 
 # ╔═╡ f1aa0001-2b3c-4d5e-8f60-000000000003
-if clu && (check_sizes || deep_check)
-	if !isdir(local_data_path)
-		Markdown.parse("**Folder not found:** `$(local_data_path)` — download the data first.")
+begin
+	flagged_files = String[]   # deletable local files (that actually exist) found by the checks
+	report =
+	if clu && (check_sizes || deep_check)
+		if !isdir(local_data_path)
+			Markdown.parse("**Folder not found:** `$(local_data_path)` — download the data first.")
+		else
+			msgs = String[]
+			if check_sizes
+				r = SSH_utils.check_download_sizes(username, host, remote_data_folder, local_data_path)
+				for (rel, _) in r.bad
+					p = joinpath(local_data_path, rel)
+					isfile(p) && push!(flagged_files, p)   # size-mismatch files exist; "missing" ones do not
+				end
+				if isempty(r.bad)
+					push!(msgs, "✅ **Size check** — all $(r.n) file(s) match the cluster.")
+				else
+					body = join(["- `$rel` — $why" for (rel, why) in r.bad], "\n")
+					push!(msgs, "⚠️ **Size check** — $(length(r.bad)) of $(r.n) file(s) differ. Toggle **delete** below, then re-run the download switch to re-fetch them:\n\n$body")
+				end
+			end
+			if deep_check
+				r = check_local_integrity(local_data_path)
+				for (rel, _) in r.bad
+					push!(flagged_files, joinpath(local_data_path, rel))
+				end
+				if isempty(r.bad)
+					push!(msgs, "✅ **Deep check** — all $(r.n) local `.jld2` file(s) open and read cleanly.")
+				else
+					body = join(["- `$rel` — $why" for (rel, why) in r.bad], "\n")
+					push!(msgs, "⚠️ **Deep check** — $(length(r.bad)) of $(r.n) `.jld2` file(s) are corrupt. Re-download them; if the cluster copy is also broken (size matches), that simulation must be re-run:\n\n$body")
+				end
+			end
+			Markdown.parse(join(msgs, "\n\n---\n\n"))
+		end
 	else
-		msgs = String[]
-		if check_sizes
-			r = SSH_utils.check_download_sizes(username, host, remote_data_folder, local_data_path)
-			if isempty(r.bad)
-				push!(msgs, "✅ **Size check** — all $(r.n) file(s) match the cluster.")
-			else
-				body = join(["- `$rel` — $why" for (rel, why) in r.bad], "\n")
-				push!(msgs, "⚠️ **Size check** — $(length(r.bad)) of $(r.n) file(s) differ. Delete them and re-run the download switch — the sync re-fetches missing / mismatched files:\n\n$body")
-			end
+		md""
+	end
+	unique!(flagged_files)
+	report
+end |> WideCell
+
+# ╔═╡ f1aa0001-2b3c-4d5e-8f60-000000000004
+if clu
+md"""
+**Delete the flagged file(s)** listed above so the next download re-fetches them *(only files that exist locally are removed)*: $(@bind delete_flagged Switch())
+"""
+else
+md""""""
+end |> WideCell
+
+# ╔═╡ f1aa0001-2b3c-4d5e-8f60-000000000005
+if clu && delete_flagged
+	if isempty(flagged_files)
+md"_Nothing flagged — run a check above first._"
+	else
+		nd = 0
+		for p in flagged_files
+			isfile(p) && (rm(p; force=true); nd += 1)
 		end
-		if deep_check
-			r = check_local_integrity(local_data_path)
-			if isempty(r.bad)
-				push!(msgs, "✅ **Deep check** — all $(r.n) local `.jld2` file(s) open and read cleanly.")
-			else
-				body = join(["- `$rel` — $why" for (rel, why) in r.bad], "\n")
-				push!(msgs, "⚠️ **Deep check** — $(length(r.bad)) of $(r.n) `.jld2` file(s) are corrupt. Re-download them; if the cluster copy is also broken (size matches), that simulation must be re-run:\n\n$body")
-			end
-		end
-		Markdown.parse(join(msgs, "\n\n---\n\n"))
+		Markdown.parse("🗑️ Deleted **$nd** of $(length(flagged_files)) flagged file(s) under `$(local_data_path)`. Now re-run the **download** switch above to re-fetch them.")
 	end
 else
 md""""""
@@ -1106,6 +1143,8 @@ version = "17.7.0+0"
 # ╟─f1aa0001-2b3c-4d5e-8f60-000000000001
 # ╟─f1aa0001-2b3c-4d5e-8f60-000000000002
 # ╟─f1aa0001-2b3c-4d5e-8f60-000000000003
+# ╟─f1aa0001-2b3c-4d5e-8f60-000000000004
+# ╟─f1aa0001-2b3c-4d5e-8f60-000000000005
 # ╟─11b767b5-db54-45f3-855a-2e75f3936e7c
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
