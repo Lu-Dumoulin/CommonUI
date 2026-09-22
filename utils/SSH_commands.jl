@@ -48,10 +48,9 @@ end
 find_mtimes_cmd(root) = "find $(quote_remote_path(root)) -type f -printf '%T@\\t%P\\n'"
 find_sizes_cmd(root)  = "find $(quote_remote_path(root)) -type f -printf '%s\\t%P\\n'"
 
-# Prints "true" when the directory exists and nothing otherwise.
-mkdir_check_cmd(path) = (q = quote_remote_path(path); "test -d $q  && echo true || test ! -d $q")
-mkdir_cmd(path)       = "mkdir -p $(quote_remote_path(path))"
+# Prints "true" when the directory exists, "false" otherwise.
 isdir_cmd(path)       = "test -d $(quote_remote_path(path)) && echo true || echo false"
+mkdir_cmd(path)       = "mkdir -p $(quote_remote_path(path))"
 rm_rf_cmd(path)       = "rm -rf $(quote_remote_path(path))"
 ls_cmd(path)          = "ls $(quote_remote_path(path))"
 

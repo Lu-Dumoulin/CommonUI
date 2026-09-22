@@ -6,7 +6,7 @@ include("Runner.jl")         # process-execution seam: capture / execute
 include("SSH_commands.jl")   # pure: command construction and sync planning
 using .Runner
 using .SSH_commands: ssh_cmd, scp_down_cmd, scp_up_cmd, scp_up_file_cmd, controlmaster_opts,
-                     control_exit_cmd, find_mtimes_cmd, find_sizes_cmd, mkdir_check_cmd, mkdir_cmd,
+                     control_exit_cmd, find_mtimes_cmd, find_sizes_cmd, mkdir_cmd,
                      isdir_cmd, rm_rf_cmd, ls_cmd, ensure_trailing_slash, parse_find_listing,
                      plan_sync, size_problems, is_unsafe_remote_path
 
@@ -121,7 +121,7 @@ function check_download_sizes(usr, hst, remote_directory_path, local_directory_p
 end
 
 function mkdir(u, h, cluster_directory_path; kw...)
-    if ssh(u, h, mkdir_check_cmd(cluster_directory_path); kw...) == "true"
+    if ssh(u, h, isdir_cmd(cluster_directory_path); kw...) == "true"
         println("$cluster_directory_path exists")
     else
         ssh(u, h, mkdir_cmd(cluster_directory_path); kw...)
