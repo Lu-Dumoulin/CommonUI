@@ -16,3 +16,5 @@ isdefined(Main, :DF_utils) || include(joinpath(@__DIR__, "..", "..", "utils", "D
 isdefined(Main, :UI_utils) || include(joinpath(@__DIR__, "..", "..", "utils", "UI_utils.jl"))
 
 isdefined(Main, :capture_stdout) || include(joinpath(@__DIR__, "helpers.jl"))
+isdefined(Main, :SSH_utils) || include(joinpath(@__DIR__, "..", "..", "utils", "SSH_utils.jl"))
+isdefined(Main, :IncompleteRunner) || include(joinpath(@__DIR__, "FakeRunner.jl"))

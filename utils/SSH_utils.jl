@@ -1,6 +1,9 @@
 module SSH_utils
 using RemoteFiles, OpenSSH_jll
 
+include("Runner.jl")   # relative to this file, so it also works when a notebook includes SSH_utils
+using .Runner
+
 export ssh, print_ssh, squeue, down, up, up_dir, up_file, sync, check_download_sizes,
        mkdir, rm_dir, isloaded, ssh_open, ssh_close
 
