@@ -24,14 +24,6 @@
 const usr = "dumoulil"
 const hst = "login1.baobab.hpc.unige.ch"
 
-# --- Dependencies needed only to *load* SSH_utils.jl -------------------------
-import Pkg
-let needed = ["RemoteFiles", "OpenSSH_jll"]
-    have = keys(Pkg.project().dependencies)
-    miss = filter(p -> !(p in have), needed)
-    isempty(miss) || (println("Installing $miss into the active environment..."); Pkg.add(miss))
-end
-
 include(joinpath(@__DIR__, "..", "..", "utils", "SSH_utils.jl"))
 
 # --- Tiny test harness -------------------------------------------------------

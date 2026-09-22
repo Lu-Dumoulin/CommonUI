@@ -1,11 +1,22 @@
 module SSH_utils
-using RemoteFiles, OpenSSH_jll
 
-include("Runner.jl")   # relative to this file, so it also works when a notebook includes SSH_utils
+# Both are included relative to this file, so this also works when a notebook
+# includes SSH_utils. Tests reach them as SSH_utils.Runner / SSH_utils.SSH_commands.
+include("Runner.jl")         # process-execution seam: capture / execute
+include("SSH_commands.jl")   # pure: command construction and sync planning
 using .Runner
+using .SSH_commands: ssh_cmd, scp_down_cmd, scp_up_cmd, scp_up_file_cmd, controlmaster_opts,
+                     control_exit_cmd, find_mtimes_cmd, find_sizes_cmd, mkdir_check_cmd, mkdir_cmd,
+                     isdir_cmd, rm_rf_cmd, ls_cmd, ensure_trailing_slash, parse_find_listing,
+                     plan_sync, size_problems, is_unsafe_remote_path
 
 export ssh, print_ssh, squeue, down, up, up_dir, up_file, sync, check_download_sizes,
        mkdir, rm_dir, isloaded, ssh_open, ssh_close
+
+# Every function builds its command with SSH_commands and hands it to a runner.
+# The keywords `opts` (ssh/scp options, default: the SSH_OPTS set by ssh_open)
+# and `runner` (default: really run it) exist so tests can be hermetic; the
+# notebooks never pass them.
 
 # --- Optional SSH connection multiplexing (opt-in, fully additive) -----------------------
 # `SSH_OPTS` is EMPTY by default, so every function below behaves EXACTLY as before — one
@@ -25,27 +36,27 @@ const SSH_OPTS = Ref{Cmd}(``)
 const CM_DIR = joinpath(homedir(), ".ssh", "controlmasters")
 const CONTROL_PERSIST = 600   # seconds the master stays alive after the last connection
 
-ssh(usr, hst, cmd) = readchomp(`ssh $(SSH_OPTS[]) $usr\@$hst $cmd`)
+ssh(usr, hst, cmd; opts = SSH_OPTS[], runner = ShellRunner()) =
+    capture(runner, ssh_cmd(opts, usr, hst, cmd))
 
-print_ssh(usr, hst, cmd) =  println(ssh(usr, hst, cmd))
+print_ssh(usr, hst, cmd; kw...) = println(ssh(usr, hst, cmd; kw...))
 
 # Open (or refresh) the shared master connection so the following ssh/scp all reuse one
 # login; returns the remote `user@host` as a connectivity check. On Windows it just verifies
 # connectivity (multiplexing unsupported) and leaves the one-login-per-call behaviour intact.
-function ssh_open(usr, hst)
+function ssh_open(usr, hst; runner = ShellRunner())
     if !Sys.iswindows()
         isdir(CM_DIR) || mkpath(CM_DIR)
-        # %C = short fixed-length hash of (localhost, remotehost, port, user); keeps the
-        # control-socket path under the ~104-char Unix-socket limit.
-        SSH_OPTS[] = `-o ControlMaster=auto -o ControlPath=$(joinpath(CM_DIR, "%C")) -o ControlPersist=$(CONTROL_PERSIST)`
+        SSH_OPTS[] = controlmaster_opts(CM_DIR, CONTROL_PERSIST)
     end
-    ssh(usr, hst, "echo \$(whoami)@\$(hostname)")   # authenticates once and opens the master
+    ssh(usr, hst, "echo \$(whoami)@\$(hostname)"; runner)   # authenticates once and opens the master
 end
 
 # Close the shared master connection (if any) and revert to one-login-per-call behaviour.
-function ssh_close(usr, hst)
+# Best effort: a master that has already gone away is not an error.
+function ssh_close(usr, hst; runner = ShellRunner())
     if !Sys.iswindows() && !isempty(SSH_OPTS[].exec)
-        try; run(`ssh $(SSH_OPTS[]) -O exit $usr\@$hst`); catch; end
+        try; execute(runner, control_exit_cmd(SSH_OPTS[], usr, hst)); catch; end
     end
     SSH_OPTS[] = ``
     nothing
@@ -54,51 +65,44 @@ end
 # Query the Slurm scheduler over SSH and RETURN the output as a String (unlike print_ssh,
 # which only prints), so it can be displayed/refreshed in a notebook cell. Default
 # `opt="--me"` lists the caller's own jobs.
-squeue(usr, hst; opt="--me") = ssh(usr, hst, "squeue $opt")
+squeue(usr, hst; opt = "--me", kw...) = ssh(usr, hst, "squeue $opt"; kw...)
 
-down(usr, hst, cluster_file_path, local_directory_path) = run(`scp $(SSH_OPTS[]) -r $usr\@$hst:$cluster_file_path $local_directory_path`)
+down(usr, hst, cluster_file_path, local_directory_path; opts = SSH_OPTS[], runner = ShellRunner()) =
+    execute(runner, scp_down_cmd(opts, usr, hst, cluster_file_path, local_directory_path))
 
-up(usr, hst, cluster_directory_path, local_file_path) = run(`scp $(SSH_OPTS[]) -r $local_file_path $usr\@$hst:$cluster_directory_path`)
-up_dir(usr, hst, cluster_directory_path, local_directory_path) = run(`scp $(SSH_OPTS[]) -r """$local_directory_path""" $usr\@$hst:$cluster_directory_path`)
-up_file(usr, hst, cluster_directory_path, local_file_path) = run(`scp $(SSH_OPTS[]) $local_file_path $usr\@$hst:$cluster_directory_path`);
+up(usr, hst, cluster_directory_path, local_file_path; opts = SSH_OPTS[], runner = ShellRunner()) =
+    execute(runner, scp_up_cmd(opts, usr, hst, cluster_directory_path, local_file_path))
+
+# Same command as `up` (kept for API compatibility): a recursive copy handles a
+# directory and a file alike.
+up_dir(usr, hst, cluster_directory_path, local_directory_path; kw...) =
+    up(usr, hst, cluster_directory_path, local_directory_path; kw...)
+
+up_file(usr, hst, cluster_directory_path, local_file_path; opts = SSH_OPTS[], runner = ShellRunner()) =
+    execute(runner, scp_up_file_cmd(opts, usr, hst, cluster_directory_path, local_file_path))
 
 # Download a remote directory tree, transferring only files that are missing
 # locally or newer on the cluster. Cross-platform (Windows/macOS/Linux): it uses
 # only `ssh`/`scp` and compares modification times in Julia, so no `rsync` is
-# required. `find -printf` runs on the cluster (Linux), so it is unaffected by
-# the client OS. Returns the number of files downloaded.
-function sync(usr, hst, cluster_directory_path, local_directory_path; nparallel=4)
-    root = endswith(cluster_directory_path, "/") ? cluster_directory_path : cluster_directory_path * "/"
-    raw = ssh(usr, hst, "find $root -type f -printf '%T@\\t%P\\n'")
-    # First pass (local, no network): decide which files are missing or stale.
-    to_download = String[]
-    n_skipped = 0
-    for line in split(raw, "\n", keepempty=false)
-        parts = split(line, "\t")
-        length(parts) == 2 || continue
-        remote_mtime = tryparse(Float64, parts[1])
-        isnothing(remote_mtime) && continue
-        rel = String(parts[2])
-        local_path = joinpath(local_directory_path, rel)
-        if !isfile(local_path) || remote_mtime > mtime(local_path)
-            push!(to_download, rel)
-        else
-            n_skipped += 1
-        end
-    end
+# required. Returns the number of files downloaded.
+function sync(usr, hst, cluster_directory_path, local_directory_path;
+              nparallel = 4, opts = SSH_OPTS[], runner = ShellRunner())
+    root = ensure_trailing_slash(cluster_directory_path)
+    listing = ssh(usr, hst, find_mtimes_cmd(root); opts, runner)
+    to_download, n_skipped = plan_sync(parse_find_listing(listing, Float64), local_directory_path)
     println("$(length(to_download)) file(s) to download, $n_skipped already up-to-date")
     # Create the destination sub-folders up front so the parallel tasks below
     # don't race on mkpath.
     for rel in to_download
         mkpath(dirname(joinpath(local_directory_path, rel)))
     end
-    # Second pass: download up to `nparallel` files at a time. Each `scp` is its
-    # own process and `run` yields while waiting, so the transfers overlap. The
-    # semaphore keeps us under the cluster's concurrent-SSH limit.
+    # Download up to `nparallel` files at a time. Each `scp` is its own process
+    # and `run` yields while waiting, so the transfers overlap. The semaphore
+    # keeps us under the cluster's concurrent-SSH limit.
     sem = Base.Semaphore(max(nparallel, 1))
     @sync for rel in to_download
         @async Base.acquire(sem) do
-            down(usr, hst, root * rel, dirname(joinpath(local_directory_path, rel)))
+            down(usr, hst, root * rel, dirname(joinpath(local_directory_path, rel)); opts, runner)
             println("   downloaded  ", rel)
         end
     end
@@ -110,212 +114,39 @@ end
 # downloads (a dropped connection) and files missing locally. Returns `(n, bad)`, where `bad`
 # is a vector of `(relative_path, reason)`. One remote `find`; reads nothing locally beyond
 # `filesize`, so it stays fast even for large trees.
-function check_download_sizes(usr, hst, remote_directory_path, local_directory_path)
-    root = endswith(remote_directory_path, "/") ? remote_directory_path : remote_directory_path * "/"
-    raw = ssh(usr, hst, "find $root -type f -printf '%s\\t%P\\n'")
-    bad = Tuple{String,String}[]
-    n = 0
-    for line in split(raw, "\n", keepempty=false)
-        parts = split(line, "\t")
-        length(parts) == 2 || continue
-        rsize = tryparse(Int, parts[1])
-        isnothing(rsize) && continue
-        rel = String(parts[2]); n += 1
-        lpath = joinpath(local_directory_path, rel)
-        if !isfile(lpath)
-            push!(bad, (rel, "missing locally"))
-        elseif filesize(lpath) != rsize
-            push!(bad, (rel, "local $(filesize(lpath)) B ≠ cluster $rsize B"))
-        end
-    end
-    return (n = n, bad = bad)
+function check_download_sizes(usr, hst, remote_directory_path, local_directory_path; kw...)
+    root = ensure_trailing_slash(remote_directory_path)
+    listing = ssh(usr, hst, find_sizes_cmd(root); kw...)
+    return size_problems(parse_find_listing(listing, Int), local_directory_path)
 end
 
-function mkdir(u, h, cluster_directory_path)
-    if ssh(u, h, "test -d $cluster_directory_path  && echo true || test ! -d $cluster_directory_path") == "true"
+function mkdir(u, h, cluster_directory_path; kw...)
+    if ssh(u, h, mkdir_check_cmd(cluster_directory_path); kw...) == "true"
         println("$cluster_directory_path exists")
     else
-        ssh(u, h, "mkdir -p $cluster_directory_path")
+        ssh(u, h, mkdir_cmd(cluster_directory_path); kw...)
         println("Create $cluster_directory_path")
     end
 end
 
 # Remove a remote directory (recursively, `rm -rf`). A few sanity checks guard
-# against wiping the wrong thing: the path must be non-empty, absolute, and not
-# the filesystem root or the user's bare home directory.
-function rm_dir(u, h, cluster_directory_path)
-    path = strip(cluster_directory_path)
-    if isempty(path) || path in ("/", "~", "~/", "/home", "/home/")
+# against wiping the wrong thing: the path must be non-empty and not the
+# filesystem root or the user's bare home directory.
+function rm_dir(u, h, cluster_directory_path; kw...)
+    is_unsafe_remote_path(cluster_directory_path) &&
         error("rm_dir refused: unsafe path $(repr(cluster_directory_path))")
-    end
-    if ssh(u, h, "test -d $path && echo true || echo false") != "true"
+    path = strip(cluster_directory_path)
+    if ssh(u, h, isdir_cmd(path); kw...) != "true"
         println("$path does not exist")
         return nothing
     end
-    ssh(u, h, "rm -rf $path")
+    ssh(u, h, rm_rf_cmd(path); kw...)
     println("Removed $path")
 end
 
-readdir(u, h, cluster_directory_path) = split(ssh(u, h, "ls $cluster_directory_path"), "\n", keepempty=false)
+readdir(u, h, cluster_directory_path; kw...) =
+    split(ssh(u, h, ls_cmd(cluster_directory_path); kw...), "\n", keepempty=false)
 
 isloaded() = true
 
 end
-# export ssh, run_ssh, ssh_print, cluster_home_path, cluster_scratch_path
-
-# cluster_home_path(username) = "/home/users/$(username[1])/$username/"
-# cluster_scratch_path(username) = "/srv/beegfs/scratch/users/$(username[1])/$username/"
-
-# # const local_utilities_path = normpath(string(@__DIR__,"/"))
-
-# # Little function to execute a commande using SSH on the cluster
-# run_ssh(username, host, cmd) = run(`ssh $username\@$host $cmd`)
-# # Same but return consol as a string
-# ssh(username, host, cmd) = readchomp(`ssh $username\@$host $cmd`)
-# # Same but print result
-# ssh_print(username, host, cmd) =  println(ssh(username, host, cmd))
-
-
-# ############### File Managment ###############
-# module File
-# using ..SSH
-
-# @inline readdir(u, h, cluster_directory_path) = split(ssh(u, h, "ls $(cluster_directory_path(u))"), "\n", keepempty=false)
-
-# @inline findfile(u, h, filename, cluster_directory_path) = ssh(u, h, "find $(cluster_directory_path(u)) -name $filename")
-
-# @inline function isfile(u, h, cluster_file_path)
-#     local answ;
-#     try
-#         answ = ssh(u, h, """[[ -f $cluster_file_path ]] && echo "1" || echo "0" """)
-#     catch
-#         answ = "Issue"
-#     end
-#     answ == "1" ? (return true) : nothing
-#     if answ == "0"
-#         return false
-#     else 
-#         println(" ERROR while looking for $cluster_file_path")
-#         return false
-#     end
-# end
-
-# @inline function isdir(u, h, dir_name)
-#     full_path = cluster_home_path(u)*dir_name
-#     full_path *= endswith("/", full_path) ? "" : "/"
-#     local answ;
-#     try
-#         answ = ssh(u, h, """ [ -d $full_path ]  && echo "1" || echo "0" """)
-#     catch
-#         answ = "Issue"
-#     end
-#     answ == "1" ? (return true) : nothing
-#     if answ == "0"
-#         return false
-#     else 
-#         println(" ERROR while looking for $full_path")
-#         return false
-#     end
-# end
-
-# @inline function filesize(u, h, cluster_file_path)
-#     try
-#         return tryparse(Int, ssh(u, h, `stat --printf="%s" $cluster_file_path`))
-#     catch
-#         return 0
-#     end
-# end
-
-# @inline function mkdir(u, h, cluster_directory_path)
-#     if ssh(u, h, "test -d $cluster_directory_path  && echo true || test ! -d $cluster_directory_path") == "true"
-#         println("$cluster_directory_path exists")
-#     else
-#         ssh(u, h, "mkdir -p $cluster_directory_path")
-#         println("Create $cluster_directory_path")
-#     end
-# end
-# end
-
-# ############### Print informations ###############
-# module Print
-# export quota, infogpus, seff, squeue, scancel, out, lastout, get_list_nodes, infonodes
-# using ..SSH, .SSH.Get
-
-# quota(u, h) = ssh_print(u, h, "beegfs-get-quota-home-scratch.sh $u")
-
-# squeue(u, h; opt="") = ssh_print(u, h, "squeue -u $u $opt")
-# seff(u, h, jobID) = ssh_print(u, h, "seff $jobID")
-
-# scancel(u, h, num) = ssh_print(u, h, "scancel "*string(num))
-
-# end
-
-
-# ############### Download/upload ###############
-# module SCP
-# using ..SSH, .SSH.file
-
-# @inline filter_ext!(list_of_file, ext) = filter!(endswith(ext), list_of_file)
-# @inline filter_ext(list_of_file, ext) = filter(endswith(ext), list_of_file)
-
-# @inline down(u, h, cluster_file_path, local_directory_path) = run(`scp -r $u\@$h:$cluster_file_path $local_directory_path`)
-
-# @inline up(u, h, cluster_directory_path, local_file_path) = run(`scp -r $local_file_path $u\@$h:$cluster_directory_path`)
-
-# @inline up_dir(u, h, cluster_directory_path, local_directory_path) = run(`scp """$local_directory_path""""*" $u\@$h:$cluster_directory_path`)
-
-# @inline up_file(u, h, cluster_directory_path, local_file_path) = run(`scp $local_file_path $u\@$h:$cluster_directory_path`)
-
-# @inline function up_ext(u, h, cluster_directory_path, local_directory_path, ext)
-#     for i in filter_ext!(readdir(local_directory_path), ext)
-#         up_file(u, h, cluster_directory_path, local_directory_path*i)
-#     end
-# end
-
-# @inline up_jl(u, h, cluster_directory_path, local_directory_path) = up_ext(u, h, cluster_directory_path, local_directory_path, ".jl")
-
-# @inline function update_file(u, h, filename, cluster_directory_path, local_directory_path)
-#     if filename != "" && File.filesize(u, h, cluster_directory_path*filename) != filesize(local_directory_path*filename)
-#         println(" update $u\@$h:$(cluster_directory_path*filename) to $(local_directory_path*filename)")
-#         down(u, h, cluster_directory_path*filename, local_directory_path)
-#     end
-# end
-
-# # Fonction that update file(s) of a specific ext (".something" file(s)) 
-# # of your local dir if the file on the cluster is different (in size)
-# function update_ext(u, h, cluster_directory_path, local_directory_path, ext=".out")
-#     for filename in filter_ext!(File.readdir(u, h, cluster_directory_path), ext)
-#        update_file(u, h, filename, cluster_directory_path, local_directory_path)
-#     end
-# end
-
-# # Recursive function that download files of cluster directory (cdir) on your computer (ldir)
-# # Only if the files on the computer do not exist
-# function download_dir(u, h, cluster_directory_path, local_directory_path)
-#     isfile(local_directory_path[1:end-1]) && return nothing
-#     isdir(local_directory_path) ? nothing : mkpath(local_directory_path)
-#     list_of_local_subdirectories = readdir(local_directory_path)
-#     list_of_subdirectories = File.readdir(u, h, cluster_directory_path)
-#     for subdirectory in list_of_subdirectories
-#         o = findfirst(subdirectory .== list_of_local_subdirectories)
-#         if isnothing(o)
-#             println(" Copy $u$h:$cluster_directory_path$subdirectory into $local_directory_path")
-#             down(u, h, cluster_directory_path*subdirectory, local_directory_path)
-#         else
-#             download_dir(u, h, cluster_directory_path*subdirectory*"/", local_directory_path*subdirectory*"/")
-#         end
-#     end
-# end
-
-# # Call download_dir and upate_ext for specific extension
-# # This function needs to be edited according to your need
-# function download(u, h, cluster_directory, local_directory_path)
-#     cluster_directory_path = (startswith(cluster_directory, "/home/") || startswith(cluster_directory, "/srv")) ? cluster_directory : cluster_home_path*cluster_directory
-#     println("Download $cluster_directory_path into $local_directory_path")
-#     mkpath(local_directory_path)
-#     update_ext(u, h, cluster_directory_path, local_directory_path, ".csv")
-#     update_ext(u, h, cluster_directory_path, local_directory_path, ".out")
-#     download_dir(u, h, cluster_directory_path, local_directory_path)
-# end
-# end
-# end
