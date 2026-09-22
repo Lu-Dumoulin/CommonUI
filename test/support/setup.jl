@@ -10,7 +10,7 @@
 # =============================================================================
 
 using Test
-using DataFrames
+using DataFrames, CSV
 
 isdefined(Main, :DF_utils) || include(joinpath(@__DIR__, "..", "..", "utils", "DF_utils.jl"))
 isdefined(Main, :UI_utils) || include(joinpath(@__DIR__, "..", "..", "utils", "UI_utils.jl"))
