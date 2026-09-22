@@ -105,26 +105,61 @@ include(joinpath(@__DIR__, "..", "support", "setup.jl"))
         @test all(==(Vector{Any}), types)
     end
 
-    @testset "parse_values gives an empty expansion for a descending a:b" begin
+    @testset "parse_values raises on a range that expands to nothing" begin
         # Arrange
         input = "5:1"
 
         # Act
-        result = UI_utils.parse_values(input)
+        call = () -> UI_utils.parse_values(input)
 
         # Assert
-        @test isempty(result)
+        @test_throws ArgumentError call()
+        @test_throws "5:1" call()
     end
 
-    @testset "parse_values reads only the first two fields of a range with four" begin
+    @testset "parse_values raises on a zero step" begin
         # Arrange
-        input = "1:2:3:4"
+        input = "1:0:5"
+
+        # Act
+        call = () -> UI_utils.parse_values(input)
+
+        # Assert
+        @test_throws ArgumentError call()
+    end
+
+    @testset "parse_values counts down with a negative step" begin
+        # Arrange
+        input = "5:-1:1"
 
         # Act
         result = UI_utils.parse_values(input)
 
         # Assert
-        @test result == [1.0, 2.0]
+        @test result == [5.0, 4.0, 3.0, 2.0, 1.0]
+    end
+
+    @testset "parse_values raises on a numeric range with more than three fields" begin
+        # Arrange
+        input = "1:2:3:4"
+
+        # Act
+        call = () -> UI_utils.parse_values(input)
+
+        # Assert
+        @test_throws ArgumentError call()
+        @test_throws "1:2:3:4" call()
+    end
+
+    @testset "parse_values still passes a non-numeric token with many colons through" begin
+        # Arrange
+        input = "1:x:3:4"
+
+        # Act
+        result = UI_utils.parse_values(input)
+
+        # Assert
+        @test isequal(result, Any["1:x:3:4"])
     end
 
     # --- parse_to_slurm_array ------------------------------------------------
@@ -206,15 +241,60 @@ include(joinpath(@__DIR__, "..", "support", "setup.jl"))
         @test result == ""
     end
 
-    @testset "parse_to_slurm_array reads only the first two fields of a range with four" begin
+    @testset "parse_to_slurm_array raises on a numeric range with more than three fields" begin
         # Arrange
         input = "1:2:3:4"
+
+        # Act
+        call = () -> UI_utils.parse_to_slurm_array(input)
+
+        # Assert
+        @test_throws ArgumentError call()
+        @test_throws "1:2:3:4" call()
+    end
+
+    @testset "parse_to_slurm_array raises on a descending a:b" begin
+        # Arrange
+        input = "5:1"
+
+        # Act
+        call = () -> UI_utils.parse_to_slurm_array(input)
+
+        # Assert
+        @test_throws ArgumentError call()
+    end
+
+    @testset "parse_to_slurm_array raises on a negative step" begin
+        # Arrange
+        input = "5:-1:1"
+
+        # Act
+        call = () -> UI_utils.parse_to_slurm_array(input)
+
+        # Assert
+        @test_throws ArgumentError call()
+    end
+
+    @testset "parse_to_slurm_array raises on a zero step" begin
+        # Arrange
+        input = "1:0:5"
+
+        # Act
+        call = () -> UI_utils.parse_to_slurm_array(input)
+
+        # Assert
+        @test_throws ArgumentError call()
+    end
+
+    @testset "parse_to_slurm_array accepts a single-element range" begin
+        # Arrange
+        input = "3:3"
 
         # Act
         result = UI_utils.parse_to_slurm_array(input)
 
         # Assert
-        @test result == "1-2"
+        @test result == "3-3"
     end
 
     # --- @named_parse --------------------------------------------------------

@@ -196,6 +196,11 @@ Pin this with a characterisation test **before** touching the function.
   numbers and passes unparseable tokens through as `String`;
   `parse_to_slurm_array` silently *drops* tokens that are not integers, and
   renders `"1:2:9"` as `"1-9:2"`.
+- Keep the range errors (added before this refactor): a range whose fields are
+  all numeric raises `ArgumentError` if it has more than three fields, if
+  `parse_values` would expand it to nothing, or if `parse_to_slurm_array` would
+  emit a descending or non-positive-step Slurm spec. Non-numeric tokens keep the
+  pass-through / drop behaviour above.
 - Split `print_list` into `format_list(names, values) -> String` (testable),
   `empty_field_alert()` and the existing `print_list` wrapper that keeps the
   notebook's behaviour.

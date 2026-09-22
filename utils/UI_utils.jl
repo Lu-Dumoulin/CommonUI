@@ -10,6 +10,11 @@ function parse_to_slurm_array(s::String)
         if occursin(":", p)
             tokens = tryparse.(Int, strip.(split(p, ":")))
             if !any(isnothing, tokens)
+                length(tokens) > 3 && throw(ArgumentError(
+                    "parse_to_slurm_array: range \"$p\" has $(length(tokens)) fields; expected a:b or a:b:c"))
+                step = length(tokens) == 3 ? tokens[2] : 1
+                (step >= 1 && tokens[1] <= tokens[end]) || throw(ArgumentError(
+                    "parse_to_slurm_array: range \"$p\" must count up with a positive step"))
                 # "start:step:stop" → "start:stop:step" (SLURM uses start-stop:step)
                 slurm_str = length(tokens) == 3 ? "$(tokens[1])-$(tokens[3]):$(tokens[2])" :
                                                    "$(tokens[1])-$(tokens[2])"
@@ -33,8 +38,11 @@ function parse_values(s::String)
             # Parse "start:step:stop" or "start:stop"
             tokens = tryparse.(Float64, strip.(split(p, ":")))
             if !any(isnothing, tokens)
+                length(tokens) > 3 && throw(ArgumentError(
+                    "parse_values: range \"$p\" has $(length(tokens)) fields; expected a:b or a:b:c"))
                 r = length(tokens) == 3 ? (tokens[1]:tokens[2]:tokens[3]) :
                                           (tokens[1]:tokens[2])
+                isempty(r) && throw(ArgumentError("parse_values: range \"$p\" contains no values"))
                 append!(result, collect(r))
             else
                 push!(result, p)  # unparseable, keep as string
