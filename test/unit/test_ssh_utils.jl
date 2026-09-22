@@ -6,6 +6,17 @@ include(joinpath(@__DIR__, "..", "support", "setup.jl"))
 
 @testset "SSH_utils with a FakeRunner" begin
 
+    @testset "SSH_utils exports no name that clashes with Base (such as mkdir)" begin
+        # Arrange
+        exported = names(SSH_utils)
+
+        # Act
+        clashes = filter(n -> isdefined(Base, n) && n != :SSH_utils, exported)
+
+        # Assert
+        @test isempty(clashes)
+    end
+
     @testset "ssh hands its command to the runner and returns the reply" begin
         # Arrange
         runner = FakeRunner("node01")

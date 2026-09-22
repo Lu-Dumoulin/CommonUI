@@ -10,8 +10,10 @@ using .SSH_commands: ssh_cmd, scp_down_cmd, scp_up_cmd, scp_up_file_cmd, control
                      isdir_cmd, rm_rf_cmd, ls_cmd, ensure_trailing_slash, parse_find_listing,
                      plan_sync, size_problems, is_unsafe_remote_path
 
+# `mkdir` and `readdir` are deliberately not exported: they would clash with
+# Base under `using`. Call them qualified, as SSH_utils.mkdir(...).
 export ssh, print_ssh, squeue, down, up, up_dir, up_file, sync, check_download_sizes,
-       mkdir, rm_dir, isloaded, ssh_open, ssh_close
+       rm_dir, isloaded, ssh_open, ssh_close
 
 # Every function builds its command with SSH_commands and hands it to a runner.
 # The keywords `opts` (ssh/scp options, default: the SSH_OPTS set by ssh_open)
