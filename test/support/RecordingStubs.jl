@@ -10,13 +10,16 @@
 
 const _STUB_SCRIPT = raw"""
 #!/bin/sh
-# One write per call, so concurrent calls cannot interleave their records.
+# Concurrent calls (sync's parallel scp) must not interleave their records,
+# so each append holds a lock; mkdir is atomic on every POSIX filesystem.
 out="CALL $(basename "$0")"
 for a in "$@"; do
 out="$out
 ARG $a"
 done
+while ! mkdir "$STUB_LOG.lock" 2>/dev/null; do sleep 0.01; done
 printf '%s\n' "$out" >> "$STUB_LOG"
+rmdir "$STUB_LOG.lock"
 if [ "$(basename "$0")" = "ssh" ]; then cat "$STUB_REPLY"; fi
 """
 
