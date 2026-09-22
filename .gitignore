@@ -1,2 +1,8 @@
 .DS_Store
 Manifest.toml
+
+# coverage (test/coverage.jl)
+*.cov
+*.jl.*.cov
+lcov.info
+coverage/
