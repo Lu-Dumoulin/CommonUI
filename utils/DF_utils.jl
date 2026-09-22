@@ -2,24 +2,15 @@ module DF_utils
 using DataFrames, CSV
 export generate_dataframe, isloaded
 
+# Full-factorial sweep: one row per combination of values. The FIRST parameter
+# varies fastest and the last slowest; row i of DF.csv is SLURM_ARRAY_TASK_ID i,
+# so this ordering is a contract (see test/unit/test_df_utils.jl).
 function generate_dataframe(listname, listtab)
     length(listname) == length(listtab) || throw(ArgumentError(
         "generate_dataframe: got $(length(listname)) parameter names but $(length(listtab)) value lists"))
-    nsim = prod(length.(listtab))
-    nsim == 0 && return DataFrame()
-    df = DataFrame([name => fill(listtab[i][1], nsim)
-                    for (i, name) in enumerate(listname)])
-    count = 1
-    for (i, name) in enumerate(listname)
-        vals = listtab[i]
-        if length(vals) > 1
-            for j in 1:div(nsim, count)
-                df[(j-1)*count+1:j*count, name] .= vals[(j-1) % length(vals) + 1]
-            end
-            count *= length(vals)
-        end
-    end
-    return df
+    any(isempty, listtab) && return DataFrame()
+    rows = vec(collect(Iterators.product(listtab...)))   # product varies its first argument fastest
+    return DataFrame([name => [row[i] for row in rows] for (i, name) in enumerate(listname)])
 end
 
 isloaded() = true
