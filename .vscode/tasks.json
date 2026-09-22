@@ -1,0 +1,19 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run tests",
+            "type": "shell",
+            "command": "julia --project=. test/runtests.jl",
+            "group": { "kind": "test", "isDefault": true },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run unit tests",
+            "type": "shell",
+            "command": "julia --project=. test/runtests.jl unit",
+            "group": "test",
+            "problemMatcher": []
+        }
+    ]
+}
