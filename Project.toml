@@ -1,0 +1,22 @@
+# Dependency environment for CommonUI.
+#
+# CommonUI is used by cloning it into a parent project (see README), and its
+# utilities are loaded with `include(...)` rather than `import CommonUI`, so
+# this is a plain environment rather than a package: it pins what the utils
+# and the test suite need, nothing more.
+#
+#   julia --project=. -e 'using Pkg; Pkg.instantiate()'
+#   julia --project=. test/runtests.jl
+
+[deps]
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
+OpenSSH_jll = "9bd350c2-7e96-507f-8002-3f2e150b4e1b"
+PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
+PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+RemoteFiles = "cbe49d4c-5af1-5b60-bb70-0a60aa018e1b"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[compat]
+julia = "1.10"
