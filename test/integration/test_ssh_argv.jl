@@ -136,7 +136,7 @@ else
         rec = record_commands(() -> SSH_utils.mkdir("alice", "cluster", path); reply = "true")
 
         # Assert
-        @test rec.calls == [["ssh", "alice@cluster", "test -d /scratch/alice/run  && echo true || test ! -d /scratch/alice/run"]]
+        @test rec.calls == [["ssh", "alice@cluster", "test -d /scratch/alice/run && echo true || echo false"]]
         @test rec.output == "/scratch/alice/run exists\n"
     end
 
@@ -145,10 +145,10 @@ else
         path = "/scratch/alice/run"
 
         # Act
-        rec = record_commands(() -> SSH_utils.mkdir("alice", "cluster", path); reply = "")
+        rec = record_commands(() -> SSH_utils.mkdir("alice", "cluster", path); reply = "false")
 
         # Assert
-        @test rec.calls == [["ssh", "alice@cluster", "test -d /scratch/alice/run  && echo true || test ! -d /scratch/alice/run"],
+        @test rec.calls == [["ssh", "alice@cluster", "test -d /scratch/alice/run && echo true || echo false"],
                             ["ssh", "alice@cluster", "mkdir -p /scratch/alice/run"]]
         @test rec.output == "Create /scratch/alice/run\n"
     end

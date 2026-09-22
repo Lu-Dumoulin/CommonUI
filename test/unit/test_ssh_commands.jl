@@ -127,19 +127,18 @@ include(joinpath(@__DIR__, "..", "support", "setup.jl"))
         quoted = "'/scratch/run 2'"
 
         # Act
-        cmds = [SSH_utils.SSH_commands.mkdir_check_cmd(path), SSH_utils.SSH_commands.mkdir_cmd(path),
+        cmds = [SSH_utils.SSH_commands.mkdir_cmd(path),
                 SSH_utils.SSH_commands.isdir_cmd(path), SSH_utils.SSH_commands.rm_rf_cmd(path),
                 SSH_utils.SSH_commands.ls_cmd(path), SSH_utils.SSH_commands.find_mtimes_cmd(path * "/"),
                 SSH_utils.SSH_commands.find_sizes_cmd(path * "/")]
 
         # Assert
-        @test cmds[1] == "test -d $quoted  && echo true || test ! -d $quoted"
-        @test cmds[2] == "mkdir -p $quoted"
-        @test cmds[3] == "test -d $quoted && echo true || echo false"
-        @test cmds[4] == "rm -rf $quoted"
-        @test cmds[5] == "ls $quoted"
+        @test cmds[1] == "mkdir -p $quoted"
+        @test cmds[2] == "test -d $quoted && echo true || echo false"
+        @test cmds[3] == "rm -rf $quoted"
+        @test cmds[4] == "ls $quoted"
+        @test startswith(cmds[5], "find '/scratch/run 2/' -type f")
         @test startswith(cmds[6], "find '/scratch/run 2/' -type f")
-        @test startswith(cmds[7], "find '/scratch/run 2/' -type f")
     end
 
     @testset "remote commands neutralise shell metacharacters in a path" begin
