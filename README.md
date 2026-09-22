@@ -1,5 +1,7 @@
 # CommonUI
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A collection of reusable [Pluto.jl](https://plutojl.org/) notebooks and Julia utility modules for managing computational simulation workflows — from parameter generation to HPC job submission and data visualisation.
 
 ## Overview
@@ -22,10 +24,14 @@ MyProject/
 ├── CommonUI/
 │   ├── RunSimulations.pluto.jl
 │   ├── DataVisualisation.pluto.jl
-│   └── utils/
-│       ├── SSH_utils.jl
-│       ├── UI_utils.jl
-│       └── DF_utils.jl
+│   ├── utils/
+│   │   ├── SSH_utils.jl       # includes Runner.jl and SSH_commands.jl
+│   │   ├── Runner.jl
+│   │   ├── SSH_commands.jl
+│   │   ├── Slurm_utils.jl
+│   │   ├── UI_utils.jl
+│   │   └── DF_utils.jl
+│   └── test/
 └── GenInputParams.pluto.jl    # Parameter sweep notebook (not part of CommonUI)
 ```
 
@@ -87,9 +93,11 @@ Thin wrapper around `ssh` and `scp` for cluster operations.
 | `up_file(usr, hst, cluster_dir, local_file)` | Upload a single file (no `-r` flag) |
 | `down(usr, hst, cluster_path, local_dir)` | Download a file/directory from the cluster |
 | `sync(usr, hst, cluster_dir, local_dir; nparallel=4)` | Download a remote tree, transferring only files missing locally or newer on the cluster, up to `nparallel` at a time |
-| `mkdir(usr, hst, cluster_dir)` | Create a remote directory if it does not exist |
+| `SSH_utils.mkdir(usr, hst, cluster_dir)` | Create a remote directory if it does not exist (not exported: it would clash with `Base.mkdir`) |
 | `rm_dir(usr, hst, cluster_dir)` | Remove a remote directory recursively (`rm -rf`), with guards against unsafe paths |
-| `readdir(usr, hst, cluster_dir)` | List files in a remote directory |
+| `SSH_utils.readdir(usr, hst, cluster_dir)` | List files in a remote directory (not exported, like `mkdir`) |
+
+Remote paths are shell-quoted, so folders with spaces or other special characters are safe; a leading `~` still expands to your home directory. Every function also takes `opts` (ssh/scp options) and `runner` keywords. The notebooks never pass them; they exist so the test suite can run without a cluster.
 
 **Connection multiplexing (fewer logins).** By default each `ssh`/`scp` opens its own login, so a busy submit/download session can trip the cluster's *too many logins* rate-limit. Call `ssh_open(usr, hst)` **once** to establish a shared master connection (OpenSSH `ControlMaster`); every subsequent `ssh`/`scp` — including the parallel downloads in `sync` — then reuses it as a **single login**. `ssh_close` tears it down. This is opt-in and additive: without `ssh_open`, behaviour is unchanged. Supported on **macOS/Linux** only (Windows OpenSSH has no `ControlMaster`, where calls stay one-login-each). Pair it with an `ssh-agent` (`ssh-add` your key once) so a passphrase-protected key is unlocked only once.
 
@@ -105,6 +113,7 @@ Helpers for parsing user input strings in Pluto `TextField` widgets.
 | `parse_to_slurm_array(s)` | Convert the same format to a Slurm `--array` string (e.g. `"1,3:5"` → `"1,3-5"`) |
 | `@named_parse [a_str, b, c_str]` | Batch-parse `_str` variables and return `(values, names)` |
 | `print_list(names, values)` | Display parameter name/value pairs, or show an alert if any field is empty |
+| `format_list(names, values)` | The `name: value` lines `print_list` prints, as a `String` |
 
 **Range syntax** (used in `parse_values` and `parse_to_slurm_array`):
 
@@ -114,6 +123,8 @@ Helpers for parsing user input strings in Pluto `TextField` widgets.
 "0:0.5:2"       → [0.0, 0.5, 1.0, 1.5, 2.0]
 "1,3:5,8"       → [1, 3, 4, 5, 8]
 ```
+
+`parse_values` returns numbers as `Float64` and passes anything that is not a number through as a string, so `@named_parse` fails loudly on it. `parse_to_slurm_array` accepts integers only and drops anything else. A range with more than three fields (`1:2:3:4`), a range with no values (`5:1`), or a Slurm range that does not count up with a positive step raises an `ArgumentError` naming the range.
 
 ---
 
@@ -138,7 +149,48 @@ df = DF_utils.generate_dataframe(names, values)
 # 6 rows: all combinations of alpha ∈ {0.1, 0.2} × beta ∈ {10, 20, 30}
 ```
 
-The resulting `DataFrame` is typically saved to `sim/DF.csv` and consumed by `RunSimulations.pluto.jl`.
+The resulting `DataFrame` is typically saved to `sim/DF.csv` and consumed by `RunSimulations.pluto.jl`. **The row order is a contract:** the first parameter varies fastest, and row *i* is the simulation run as `SLURM_ARRAY_TASK_ID` *i*. Mismatched `names`/`values` lengths raise an `ArgumentError`.
+
+---
+
+### `utils/Slurm_utils.jl`
+
+Builds the Slurm job for the [Baobab](https://doc.eresearch.unige.ch/hpc/start) cluster. No dependencies: the notebook passes in the `UI_utils` parsers.
+
+| Function | Description |
+|---|---|
+| `array_spec(s, nsim, range_parser; max_concurrent=40)` | `--array` value: `"1-<nsim>%40"` for `all`, otherwise `range_parser(s)` |
+| `selected_indices(s, nsim, value_parser)` | Simulations to run locally: `[1]` for an empty field, `1:nsim` for `all` |
+| `gpu_constraint(names)` | `--constraint` value for the chosen GPUs, joined with `\|` |
+| `partition_spec(private, use_shared_gpu)` | `--partition` value, adding `shared-gpu` when asked |
+| `cluster_home_path(user)`, `cluster_scratch_path(user)` | `/home/users/<initial>/<user>` and `/srv/beegfs/scratch/users/<initial>/<user>` |
+| `batch_script(; array, partition, time, constraint, username, data_path, code_path, mem=3000, gpus=1)` | The `sbatch` script `RunSimulations.pluto.jl` writes |
+| `local_run_command(; gpu)` | The `julia` command for a local run (`-t auto` on CPU) |
+
+---
+
+## Tests
+
+```bash
+julia --project=. -e 'using Pkg; Pkg.instantiate()'   # first time only
+julia --project=. test/runtests.jl                    # whole suite (about 15 s)
+julia --project=. test/runtests.jl unit               # one level: unit, integration or e2e
+julia --project=. test/unit/test_ui_utils.jl          # one file
+julia --project=. test/coverage.jl                    # coverage of utils/, writes lcov.info
+```
+
+The same commands are available as VS Code tasks (*Run tests*, *Run unit tests*, *Run tests with coverage*).
+
+The suite runs offline, with no SSH keys and no cluster:
+
+| Level | What it tests |
+|---|---|
+| `test/unit/` | Pure functions, in milliseconds. SSH commands are checked through a recording fake runner. |
+| `test/integration/` | Real `ssh`/`scp` subprocesses against stub executables and a temporary "cluster" directory |
+| `test/e2e/` | The whole workflow, from the parameter fields to downloaded results |
+| `test/manual/` | `test_sync_live.jl`, a check of `sync` against the real Baobab cluster. It is **never** run by `runtests.jl`: edit the username at the top and run it by hand. |
+
+Integration and end-to-end tests need a POSIX shell and are skipped on Windows. How to write tests here (layout, Arrange/Act/Assert, characterise-first) is in [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
