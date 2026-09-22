@@ -109,6 +109,64 @@ include(joinpath(@__DIR__, "..", "support", "setup.jl"))
         @test !occursin('\t', mtimes) && !occursin('\n', mtimes)
     end
 
+    @testset "remote commands leave an ordinary absolute path unchanged" begin
+        # Arrange
+        path = "/srv/beegfs/scratch/users/a/alice/run/"
+
+        # Act
+        cmds = [f(path) for f in (SSH_utils.SSH_commands.mkdir_cmd, SSH_utils.SSH_commands.rm_rf_cmd,
+                                  SSH_utils.SSH_commands.ls_cmd)]
+
+        # Assert
+        @test cmds == ["mkdir -p $path", "rm -rf $path", "ls $path"]
+    end
+
+    @testset "remote commands quote a path with a space as one shell word" begin
+        # Arrange
+        path = "/scratch/run 2"
+        quoted = "'/scratch/run 2'"
+
+        # Act
+        cmds = [SSH_utils.SSH_commands.mkdir_check_cmd(path), SSH_utils.SSH_commands.mkdir_cmd(path),
+                SSH_utils.SSH_commands.isdir_cmd(path), SSH_utils.SSH_commands.rm_rf_cmd(path),
+                SSH_utils.SSH_commands.ls_cmd(path), SSH_utils.SSH_commands.find_mtimes_cmd(path * "/"),
+                SSH_utils.SSH_commands.find_sizes_cmd(path * "/")]
+
+        # Assert
+        @test cmds[1] == "test -d $quoted  && echo true || test ! -d $quoted"
+        @test cmds[2] == "mkdir -p $quoted"
+        @test cmds[3] == "test -d $quoted && echo true || echo false"
+        @test cmds[4] == "rm -rf $quoted"
+        @test cmds[5] == "ls $quoted"
+        @test startswith(cmds[6], "find '/scratch/run 2/' -type f")
+        @test startswith(cmds[7], "find '/scratch/run 2/' -type f")
+    end
+
+    @testset "remote commands neutralise shell metacharacters in a path" begin
+        # Arrange
+        path = "/scratch/a;rm -rf ~"
+
+        # Act
+        cmd = SSH_utils.SSH_commands.rm_rf_cmd(path)
+
+        # Assert
+        @test cmd == "rm -rf '/scratch/a;rm -rf ~'"
+    end
+
+    @testset "quote_remote_path keeps a leading ~ outside the quotes" begin
+        # Arrange
+        paths = ["~", "~/", "~/data", "~/my data"]
+
+        # Act
+        quoted = SSH_utils.SSH_commands.quote_remote_path.(paths)
+
+        # Assert
+        @test quoted[1] == "~"
+        @test startswith(quoted[2], "~/")
+        @test quoted[3] == "~/data"
+        @test quoted[4] == "~/'my data'"
+    end
+
     # --- decisions ----------------------------------------------------------
 
     @testset "ensure_trailing_slash adds one slash and is idempotent" begin

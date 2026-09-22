@@ -6,7 +6,9 @@ module SSH_commands
 
 # --- Local commands (ssh / scp argument vectors) --------------------------------------
 # Interpolated values in a Cmd are never word-split, so paths with spaces stay
-# one argument each on this side.
+# one argument each on this side. The remote side of scp is left unquoted on
+# purpose: since OpenSSH 9, scp uses the SFTP protocol by default and no shell
+# parses the path, so quoting would add literal quote characters.
 
 remote_target(usr, hst) = "$usr@$hst"
 
@@ -30,18 +32,28 @@ controlmaster_opts(dir, persist) =
 control_exit_cmd(opts::Cmd, usr, hst) = `ssh $opts -O exit $(remote_target(usr, hst))`
 
 # --- Remote commands (strings run by the remote shell) --------------------------------
+# The remote shell word-splits these strings again, so every path is quoted
+# with `quote_remote_path`. Ordinary absolute paths come back unchanged.
 # `find -printf` runs on the cluster (GNU find), so it is unaffected by the client OS.
 # The \\t and \\n stay double-backslashed: find interprets them, not Julia.
 
-find_mtimes_cmd(root) = "find $root -type f -printf '%T@\\t%P\\n'"
-find_sizes_cmd(root)  = "find $root -type f -printf '%s\\t%P\\n'"
+# One POSIX shell word for `path`. A leading `~` or `~/` stays outside the
+# quotes so the remote shell still expands it to the home directory.
+function quote_remote_path(path::AbstractString)
+    path == "~" && return "~"
+    startswith(path, "~/") && return "~/" * Base.shell_escape_posixly(path[3:end])
+    return Base.shell_escape_posixly(path)
+end
+
+find_mtimes_cmd(root) = "find $(quote_remote_path(root)) -type f -printf '%T@\\t%P\\n'"
+find_sizes_cmd(root)  = "find $(quote_remote_path(root)) -type f -printf '%s\\t%P\\n'"
 
 # Prints "true" when the directory exists and nothing otherwise.
-mkdir_check_cmd(path) = "test -d $path  && echo true || test ! -d $path"
-mkdir_cmd(path)       = "mkdir -p $path"
-isdir_cmd(path)       = "test -d $path && echo true || echo false"
-rm_rf_cmd(path)       = "rm -rf $path"
-ls_cmd(path)          = "ls $path"
+mkdir_check_cmd(path) = (q = quote_remote_path(path); "test -d $q  && echo true || test ! -d $q")
+mkdir_cmd(path)       = "mkdir -p $(quote_remote_path(path))"
+isdir_cmd(path)       = "test -d $(quote_remote_path(path)) && echo true || echo false"
+rm_rf_cmd(path)       = "rm -rf $(quote_remote_path(path))"
+ls_cmd(path)          = "ls $(quote_remote_path(path))"
 
 # --- Decisions -------------------------------------------------------------------------
 

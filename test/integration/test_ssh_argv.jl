@@ -153,7 +153,7 @@ else
         @test rec.output == "Create /scratch/alice/run\n"
     end
 
-    @testset "mkdir interpolates a path with a space unquoted into the remote command" begin
+    @testset "mkdir quotes a path with a space in the remote command" begin
         # Arrange
         path = "/scratch/alice/run 2"
 
@@ -161,7 +161,35 @@ else
         rec = record_commands(() -> SSH_utils.mkdir("alice", "cluster", path); reply = "")
 
         # Assert
-        @test rec.calls[end] == ["ssh", "alice@cluster", "mkdir -p /scratch/alice/run 2"]
+        @test rec.calls[end] == ["ssh", "alice@cluster", "mkdir -p '/scratch/alice/run 2'"]
+    end
+
+    @testset "a quoted remote path reaches a POSIX shell as exactly one word" begin
+        # Arrange
+        paths = ["/scratch/run 2", "/a;touch pwned", "/a/it's", "/a/\$HOME", "/a/b*c", "~/my data"]
+
+        # Act
+        words = map(paths) do p
+            quoted = SSH_utils.SSH_commands.quote_remote_path(p)
+            readchomp(`sh -c "set -- $quoted; echo \$#"`)
+        end
+
+        # Assert
+        @test all(==("1"), words)
+    end
+
+    @testset "a quoted ~ path still expands to the remote home directory" begin
+        # Arrange
+        path = "~/my data"
+
+        # Act
+        quoted = SSH_utils.SSH_commands.quote_remote_path(path)
+        expanded = withenv("HOME" => "/home/alice") do
+            readchomp(`sh -c "printf '%s' $quoted"`)
+        end
+
+        # Assert
+        @test expanded == "/home/alice/my data"
     end
 
     @testset "rm_dir refuses each unsafe path without running ssh" begin
