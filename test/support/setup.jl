@@ -14,3 +14,5 @@ using DataFrames
 
 isdefined(Main, :DF_utils) || include(joinpath(@__DIR__, "..", "..", "utils", "DF_utils.jl"))
 isdefined(Main, :UI_utils) || include(joinpath(@__DIR__, "..", "..", "utils", "UI_utils.jl"))
+
+isdefined(Main, :capture_stdout) || include(joinpath(@__DIR__, "helpers.jl"))
