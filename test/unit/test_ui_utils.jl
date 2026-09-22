@@ -347,6 +347,55 @@ include(joinpath(@__DIR__, "..", "support", "setup.jl"))
         @test_throws "wrap your variables in square brackets" expand()
     end
 
+    # --- format_list / empty_field_alert --------------------------------------
+
+    @testset "format_list renders one name: value line per field" begin
+        # Arrange
+        listname = ["a", "b"]
+        listvalue = [[1, 2], 3.0]
+
+        # Act
+        text = UI_utils.format_list(listname, listvalue)
+
+        # Assert
+        @test text == "a: [1, 2]\nb: 3.0\n"
+    end
+
+    @testset "format_list renders nothing for no fields" begin
+        # Arrange
+        listname = String[]
+        listvalue = []
+
+        # Act
+        text = UI_utils.format_list(listname, listvalue)
+
+        # Assert
+        @test text == ""
+    end
+
+    @testset "format_list prints nothing itself" begin
+        # Arrange
+        listname = ["a"]
+        listvalue = [[1]]
+
+        # Act
+        _, output = capture_stdout(() -> UI_utils.format_list(listname, listvalue))
+
+        # Assert
+        @test output == ""
+    end
+
+    @testset "empty_field_alert says that a field is empty" begin
+        # Arrange
+        # (no input)
+
+        # Act
+        alert = UI_utils.empty_field_alert()
+
+        # Assert
+        @test occursin("One field is empty", repr(MIME("text/html"), alert))
+    end
+
     # --- print_list ----------------------------------------------------------
 
     @testset "print_list prints one name: value line per field" begin

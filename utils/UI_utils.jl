@@ -95,19 +95,20 @@ macro named_parse(expr)
     end
 end
 
-function print_list(listname, listvalue)
-    if any(isempty, listvalue)
-aside(md"""
+# "name: value" per line, as the notebook shows the parameters of a sweep.
+format_list(listname, listvalue) = join(string(listname[i], ": ", listvalue[i], "\n") for i in eachindex(listname))
+
+empty_field_alert() = aside(md"""
 !!! danger "Alert !"
     One field is empty !
 """, v_offset=-250)
-else
-    for i in eachindex(listname)
-        println(listname[i], ": ", listvalue[i])
-    end
-    md"""
-    """
-end
+
+# Notebook wrapper: alert if any field is empty, otherwise print the list.
+# Returns something Pluto can display either way.
+function print_list(listname, listvalue)
+    any(isempty, listvalue) && return empty_field_alert()
+    print(format_list(listname, listvalue))
+    return md""
 end
 
 end
