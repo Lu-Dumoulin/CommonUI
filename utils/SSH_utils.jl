@@ -46,10 +46,11 @@ print_ssh(usr, hst, cmd; kw...) = println(ssh(usr, hst, cmd; kw...))
 # Open (or refresh) the shared master connection so the following ssh/scp all reuse one
 # login; returns the remote `user@host` as a connectivity check. On Windows it just verifies
 # connectivity (multiplexing unsupported) and leaves the one-login-per-call behaviour intact.
-function ssh_open(usr, hst; runner = ShellRunner())
+# `dir` is where the control sockets live (tests point it at a temp directory).
+function ssh_open(usr, hst; runner = ShellRunner(), dir = CM_DIR)
     if !Sys.iswindows()
-        isdir(CM_DIR) || mkpath(CM_DIR)
-        SSH_OPTS[] = controlmaster_opts(CM_DIR, CONTROL_PERSIST)
+        isdir(dir) || mkpath(dir)
+        SSH_OPTS[] = controlmaster_opts(dir, CONTROL_PERSIST)
     end
     ssh(usr, hst, "echo \$(whoami)@\$(hostname)"; runner)   # authenticates once and opens the master
 end

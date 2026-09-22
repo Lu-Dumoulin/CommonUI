@@ -166,7 +166,7 @@ else
 
     @testset "a quoted remote path reaches a POSIX shell as exactly one word" begin
         # Arrange
-        paths = ["/scratch/run 2", "/a;touch pwned", "/a/it's", "/a/\$HOME", "/a/b*c", "~/my data"]
+        paths = ["/scratch/run 2", "/a;exit 7", "/a/it's", "/a/\$HOME", "/a/b*c", "~/my data"]
 
         # Act
         words = map(paths) do p
