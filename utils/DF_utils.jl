@@ -3,6 +3,8 @@ using DataFrames, CSV
 export generate_dataframe, isloaded
 
 function generate_dataframe(listname, listtab)
+    length(listname) == length(listtab) || throw(ArgumentError(
+        "generate_dataframe: got $(length(listname)) parameter names but $(length(listtab)) value lists"))
     nsim = prod(length.(listtab))
     nsim == 0 && return DataFrame()
     df = DataFrame([name => fill(listtab[i][1], nsim)

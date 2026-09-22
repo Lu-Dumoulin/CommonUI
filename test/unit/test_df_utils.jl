@@ -112,7 +112,7 @@ include(joinpath(@__DIR__, "..", "support", "setup.jl"))
         call = () -> DF_utils.generate_dataframe(listname, listtab)
 
         # Assert
-        @test_throws BoundsError call()
+        @test_throws ArgumentError call()
     end
 
     @testset "generate_dataframe raises when there are more value lists than names" begin
@@ -124,10 +124,31 @@ include(joinpath(@__DIR__, "..", "support", "setup.jl"))
         call = () -> DF_utils.generate_dataframe(listname, listtab)
 
         # Assert
-        # Known gap: today this silently returns 4 rows with duplicated `a`
-        # values instead of raising. Tracked here rather than fixed, because
-        # this commit only characterises current behaviour.
-        @test_broken (try call(); false catch; true end)
+        @test_throws ArgumentError call()
+    end
+
+    @testset "generate_dataframe names both lengths in the mismatch error" begin
+        # Arrange
+        listname = ["a"]
+        listtab = [[1, 2], [3, 4]]
+
+        # Act
+        call = () -> DF_utils.generate_dataframe(listname, listtab)
+
+        # Assert
+        @test_throws "1 parameter names but 2 value lists" call()
+    end
+
+    @testset "generate_dataframe checks lengths before returning an empty frame" begin
+        # Arrange
+        listname = ["a"]
+        listtab = [[1, 2], Float64[]]
+
+        # Act
+        call = () -> DF_utils.generate_dataframe(listname, listtab)
+
+        # Assert
+        @test_throws ArgumentError call()
     end
 
     @testset "isloaded reports true once the module is loaded" begin
