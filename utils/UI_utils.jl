@@ -2,54 +2,76 @@ module UI_utils
 using Markdown, PlutoUI, PlutoTeachingTools
 export parse_values, named_parse, print_list, parse_to_slurm_array
 
-function parse_to_slurm_array(s::String)
-    parts = strip.(split(s, ","))
-    filter!(!isempty, parts)
-    slurm_parts = []
-    for p in parts
+# --- Shared tokenizer ---------------------------------------------------------
+# Both parsers read the same mini-language: comma-separated tokens, blanks
+# dropped, each token either a plain value or a range `a:b` / `a:b:c`
+# (start:step:stop). `split_tokens` decides what each token is; the parsers
+# decide what to do with it.
+
+# A range token whose fields all parsed as T; `step` is `nothing` for `a:b`.
+# `text` is the token as the user typed it, for error messages.
+struct RangeToken{T}
+    start::T
+    step::Union{T,Nothing}
+    stop::T
+    text::String
+end
+
+# Returns a vector whose elements are a parsed `T`, a `RangeToken{T}`, or the
+# raw token (an AbstractString) when it does not parse as T. A range whose
+# fields all parse but has more than three of them is an error.
+function split_tokens(s::AbstractString, ::Type{T}) where {T<:Real}
+    tokens = Any[]
+    for p in filter!(!isempty, strip.(split(s, ",")))
         if occursin(":", p)
-            tokens = tryparse.(Int, strip.(split(p, ":")))
-            if !any(isnothing, tokens)
-                length(tokens) > 3 && throw(ArgumentError(
-                    "parse_to_slurm_array: range \"$p\" has $(length(tokens)) fields; expected a:b or a:b:c"))
-                step = length(tokens) == 3 ? tokens[2] : 1
-                (step >= 1 && tokens[1] <= tokens[end]) || throw(ArgumentError(
-                    "parse_to_slurm_array: range \"$p\" must count up with a positive step"))
-                # "start:step:stop" → "start:stop:step" (SLURM uses start-stop:step)
-                slurm_str = length(tokens) == 3 ? "$(tokens[1])-$(tokens[3]):$(tokens[2])" :
-                                                   "$(tokens[1])-$(tokens[2])"
-                push!(slurm_parts, slurm_str)
+            fields = tryparse.(T, strip.(split(p, ":")))
+            if any(isnothing, fields)
+                push!(tokens, p)
+            elseif length(fields) > 3
+                throw(ArgumentError("range \"$p\" has $(length(fields)) fields; expected a:b or a:b:c"))
+            else
+                push!(tokens, length(fields) == 3 ? RangeToken{T}(fields[1], fields[2], fields[3], p) :
+                                                    RangeToken{T}(fields[1], nothing, fields[2], p))
             end
         else
-            n = tryparse(Int, p)
-            isnothing(n) || push!(slurm_parts, string(n))
+            n = tryparse(T, p)
+            push!(tokens, isnothing(n) ? p : n)
+        end
+    end
+    return tokens
+end
+
+# Slurm `--array` spec: integers only; anything that is not an integer is
+# silently dropped. "start:step:stop" renders as SLURM's "start-stop:step".
+function parse_to_slurm_array(s::String)
+    slurm_parts = String[]
+    for tok in split_tokens(s, Int)
+        if tok isa RangeToken
+            step = something(tok.step, 1)
+            (step >= 1 && tok.start <= tok.stop) || throw(ArgumentError(
+                "parse_to_slurm_array: range \"$(tok.text)\" must count up with a positive step"))
+            push!(slurm_parts, isnothing(tok.step) ? "$(tok.start)-$(tok.stop)" :
+                                                     "$(tok.start)-$(tok.stop):$(tok.step)")
+        elseif tok isa Int
+            push!(slurm_parts, string(tok))
         end
     end
     return join(slurm_parts, ",")
 end
 
 
+# Parameter values: numbers come back as Float64, ranges are expanded, and
+# unparseable tokens pass through as strings. Returns a Vector{Any} on purpose:
+# the notebook's `Number.(...)` then fails loudly on bad input.
 function parse_values(s::String)
-    parts = strip.(split(s, ","))
-    filter!(!isempty, parts)
     result = []
-    for p in parts
-        if occursin(":", p)
-            # Parse "start:step:stop" or "start:stop"
-            tokens = tryparse.(Float64, strip.(split(p, ":")))
-            if !any(isnothing, tokens)
-                length(tokens) > 3 && throw(ArgumentError(
-                    "parse_values: range \"$p\" has $(length(tokens)) fields; expected a:b or a:b:c"))
-                r = length(tokens) == 3 ? (tokens[1]:tokens[2]:tokens[3]) :
-                                          (tokens[1]:tokens[2])
-                isempty(r) && throw(ArgumentError("parse_values: range \"$p\" contains no values"))
-                append!(result, collect(r))
-            else
-                push!(result, p)  # unparseable, keep as string
-            end
+    for tok in split_tokens(s, Float64)
+        if tok isa RangeToken
+            r = isnothing(tok.step) ? (tok.start:tok.stop) : (tok.start:tok.step:tok.stop)
+            isempty(r) && throw(ArgumentError("parse_values: range \"$(tok.text)\" contains no values"))
+            append!(result, collect(r))
         else
-            n = tryparse(Float64, p)
-            push!(result, isnothing(n) ? p : n)
+            push!(result, tok)
         end
     end
     return result
