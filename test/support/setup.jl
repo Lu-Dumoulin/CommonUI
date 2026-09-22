@@ -16,6 +16,7 @@ isdefined(Main, :DF_utils) || include(joinpath(@__DIR__, "..", "..", "utils", "D
 isdefined(Main, :UI_utils) || include(joinpath(@__DIR__, "..", "..", "utils", "UI_utils.jl"))
 
 isdefined(Main, :capture_stdout) || include(joinpath(@__DIR__, "helpers.jl"))
+isdefined(Main, :Slurm_utils) || include(joinpath(@__DIR__, "..", "..", "utils", "Slurm_utils.jl"))
 isdefined(Main, :SSH_utils) || include(joinpath(@__DIR__, "..", "..", "utils", "SSH_utils.jl"))
 isdefined(Main, :FakeRunner) || include(joinpath(@__DIR__, "FakeRunner.jl"))
 isdefined(Main, :record_commands) || include(joinpath(@__DIR__, "RecordingStubs.jl"))
