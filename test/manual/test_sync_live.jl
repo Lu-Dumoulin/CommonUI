@@ -1,11 +1,14 @@
 # =============================================================================
-# Manual test for SSH_utils.sync against Baobab.
+# MANUAL live-cluster check for SSH_utils.sync against Baobab.
+#
+# This script talks to the real cluster. It is NOT part of the automated
+# suite: test/runtests.jl never includes test/manual/.
 #
 # HOW TO RUN
 #   1. Edit the `usr` line below with your Baobab username.
 #   2. Make sure you can `ssh <usr>@login1.baobab.hpc.unige.ch` without being
 #      prompted for a password (SSH key set up), otherwise every scp will ask.
-#   3. From the repo root:   julia test/test_sync.jl
+#   3. From the repo root:   julia --project=. test/manual/test_sync_live.jl
 #
 # WHAT IT DOES
 #   - creates a tiny dummy tree locally (DF.csv + 1/result.txt + 2/result.txt)
@@ -16,8 +19,6 @@
 #       (3) after `touch`-ing one remote file           -> 1 file
 #       (4) parallel download into a fresh folder        -> 3 files
 #   - removes the remote test folder and the local temp files at the end.
-#
-# This whole `test/` folder is git-ignored, so it is never cloned with the repo.
 # =============================================================================
 
 const usr = "dumoulil"
@@ -31,7 +32,7 @@ let needed = ["RemoteFiles", "OpenSSH_jll"]
     isempty(miss) || (println("Installing $miss into the active environment..."); Pkg.add(miss))
 end
 
-include(joinpath(@__DIR__, "..", "utils", "SSH_utils.jl"))
+include(joinpath(@__DIR__, "..", "..", "utils", "SSH_utils.jl"))
 
 # --- Tiny test harness -------------------------------------------------------
 const failures = Ref(0)
