@@ -67,7 +67,29 @@ include(joinpath(@__DIR__, "..", "support", "setup.jl"))
         spec = Slurm_utils.array_spec(input, 6, UI_utils.parse_to_slurm_array)
 
         # Assert
-        @test spec == "1,3-5"
+        @test spec == "1,3-5%40"
+    end
+
+    @testset "array_spec throttles an explicit selection like it throttles all" begin
+        # Arrange
+        input = "1:200"
+
+        # Act
+        spec = Slurm_utils.array_spec(input, 200, UI_utils.parse_to_slurm_array; max_concurrent = 10)
+
+        # Assert
+        @test spec == "1-200%10"
+    end
+
+    @testset "array_spec leaves an empty selection empty rather than emitting a bare %40" begin
+        # Arrange
+        input = "x"                       # no integers, so the parser drops everything
+
+        # Act
+        spec = Slurm_utils.array_spec(input, 6, UI_utils.parse_to_slurm_array)
+
+        # Assert
+        @test spec == ""
     end
 
     @testset "selected_indices runs only the first simulation for an empty selection" begin
