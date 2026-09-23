@@ -12,9 +12,15 @@ wants_all(s) = occursin("all", s) || occursin("All", s)
 # `--array` spec for every simulation, at most `max_concurrent` running at once.
 all_array_spec(nsim; max_concurrent = 40) = "1-$nsim%$max_concurrent"
 
-# `--array` spec for the user's selection; `range_parser` turns "1,3:5" into "1,3-5".
-array_spec(s, nsim, range_parser; max_concurrent = 40) =
-    wants_all(s) ? all_array_spec(nsim; max_concurrent) : range_parser(s)
+# `--array` spec for the user's selection; `range_parser` turns "1,3:5" into
+# "1,3-5". Every spec carries the %max_concurrent limit, which protects the
+# cluster whether the user asked for "all" or listed indices by hand. An
+# empty selection stays empty rather than becoming a bare "%40".
+function array_spec(s, nsim, range_parser; max_concurrent = 40)
+    wants_all(s) && return all_array_spec(nsim; max_concurrent)
+    spec = range_parser(s)
+    return isempty(spec) ? spec : "$spec%$max_concurrent"
+end
 
 # Indices to run locally, one after the other: "" runs the first simulation only.
 selected_indices(s, nsim, value_parser) =

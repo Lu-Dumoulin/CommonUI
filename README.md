@@ -159,7 +159,7 @@ Builds the Slurm job for the [Baobab](https://doc.eresearch.unige.ch/hpc/start) 
 
 | Function | Description |
 |---|---|
-| `array_spec(s, nsim, range_parser; max_concurrent=40)` | `--array` value: `"1-<nsim>%40"` for `all`, otherwise `range_parser(s)` |
+| `array_spec(s, nsim, range_parser; max_concurrent=40)` | `--array` value: `"1-<nsim>%40"` for `all`, otherwise the parsed selection with the same `%40` limit (`"1,3-5%40"`) |
 | `selected_indices(s, nsim, value_parser)` | Simulations to run locally: `[1]` for an empty field, `1:nsim` for `all` |
 | `gpu_constraint(names)` | `--constraint` value for the chosen GPUs, joined with `\|` |
 | `partition_spec(private, use_shared_gpu)` | `--partition` value, adding `shared-gpu` when asked |
