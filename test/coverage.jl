@@ -9,7 +9,8 @@
 # repo root for the VS Code "Coverage Gutters" extension. The notebooks are
 # not covered by this suite and are not counted.
 #
-# Coverage is a conversation starter, not a target (see CLAUDE.md).
+# Coverage is a conversation starter, not a target: an uncovered line is either a
+# missing test or code nobody needs.
 # =============================================================================
 
 const ROOT  = normpath(joinpath(@__DIR__, ".."))

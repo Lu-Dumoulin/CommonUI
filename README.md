@@ -190,7 +190,7 @@ The suite runs offline, with no SSH keys and no cluster:
 | `test/e2e/` | The whole workflow, from the parameter fields to downloaded results |
 | `test/manual/` | `test_sync_live.jl`, a check of `sync` against the real Baobab cluster. It is **never** run by `runtests.jl`: edit the username at the top and run it by hand. |
 
-Integration and end-to-end tests need a POSIX shell and are skipped on Windows. How to write tests here (layout, Arrange/Act/Assert, characterise-first) is in [`CLAUDE.md`](CLAUDE.md).
+Integration and end-to-end tests need a POSIX shell and are skipped on Windows. Each testset checks one behaviour, is named after it, and is laid out as Arrange / Act / Assert; shared helpers and test doubles live in `test/support/`.
 
 ---
 
