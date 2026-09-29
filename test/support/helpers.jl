@@ -19,8 +19,8 @@ end
 """
     two_parameter_sweep() -> (listname, listtab)
 
-The reference sweep from docs/REFACTORING_PLAN.md §3.5: two values of
-`alpha` crossed with three values of `beta`, six simulations in total.
+The reference sweep: two values of `alpha` crossed with three values of
+`beta`, six simulations in total, whose row order the DF_utils tests pin.
 """
 two_parameter_sweep() = (["alpha", "beta"], [[0.1, 0.2], [10, 20, 30]])
 
