@@ -46,6 +46,17 @@ begin
 			@error "Error trying to load `utils/SSH_utils.jl`. Try to restart the notebook."
 		end
 	end
+	try
+		include("utils/Slurm_utils.jl")
+		@info "Module Slurm_utils is loaded"
+	catch
+		try 
+			Slurm_utils.wants_all("all")
+			@info "Module Slurm_utils is already loaded"
+		catch
+			@error "Error trying to load `utils/Slurm_utils.jl`. Try to restart the notebook."
+		end
+	end
 
 	if isfile("../sim/DF.csv")
 		const Nsim = nrow(CSV.read("../sim/DF.csv", DataFrame))
@@ -139,39 +150,20 @@ end
 
 # ╔═╡ e17bf885-46d3-4f03-b9ce-ff178b4ad6ea
 if clu
-	array_str = (occursin("all", indices_sim_str) || occursin("All", indices_sim_str) ) ? "1-$Nsim%40" : UI_utils.parse_to_slurm_array(indices_sim_str)
-	partition_str = use_shared_gpu ? string(private_par_str,",shared-gpu") : private_par_str
-	gpu_str = string( [ i=="A100-40Gb" ? "nvidia_a100-pcie-40gb|" : (i=="H100" ? "nvidia_h100_nvl|" : "nvidia_a100_80gb_pcie|") for i in gpu_list]...  )[1:end-1]
-		default_bash_str = """
-#!/bin/env bash
-#SBATCH --array=$array_str
-#SBATCH --partition=$partition_str
-#SBATCH --time=$time_str
-#SBATCH --output=%J.out
-#SBATCH --mem=3000  
-#SBATCH --gpus=1 
-#SBATCH --constraint=$gpu_str
-
-export use_gpu=true
-export path_to_data=/srv/beegfs/scratch/users/$(username[1])/$username$data_path_str\$SLURM_ARRAY_TASK_ID/
-
-mkdir -p \$path_to_data
-
-module load Julia
-
-cd \$path_to_data
-srun julia --optimize=3 /home/users/$(username[1])/$username$(code_path_str)main.jl
-		"""
+	array_str = Slurm_utils.array_spec(indices_sim_str, Nsim, UI_utils.parse_to_slurm_array)
+	partition_str = Slurm_utils.partition_spec(private_par_str, use_shared_gpu)
+	gpu_str = Slurm_utils.gpu_constraint(gpu_list)
+	default_bash_str = Slurm_utils.batch_script(; array = array_str, partition = partition_str,
+		time = time_str, constraint = gpu_str, username = username,
+		data_path = data_path_str, code_path = code_path_str, mem = strip(ram_str))
 	md"""
 bash file:
 		
 $(@bind bash_string TextField((100,20),default=default_bash_str))
 	"""
 else
-	cpu_str = !gpu ? " -t auto" : ""
-	local_main_normpath = "../sim/main.jl" #normpath(joinpath(@__DIR__,"../sim/main.jl"))
-	list_of_sim = isempty(indices_sim_str) ? [1] : ((occursin("all", indices_sim_str) || occursin("All", indices_sim_str) ) ? (1:Nsim) : Int.(UI_utils.parse_values(indices_sim_str)))
-	cmd = "julia --optimize=3$(cpu_str) $local_main_normpath";
+	list_of_sim = Slurm_utils.selected_indices(indices_sim_str, Nsim, UI_utils.parse_values)
+	cmd = Slurm_utils.local_run_command(; gpu = gpu);
 	@show gpu; @show list_of_sim; @show cmd
 md""" 
 In which folder do you want to save the data ? 
@@ -263,7 +255,7 @@ end |> WideCell
 
 # ╔═╡ f8d0bc70-f58e-4045-b1c8-9c58c2627359
 if clu 
-	path_to_data_folder = string("/srv/beegfs/scratch/users/$(username[1])/$username",data_path_str)
+	path_to_data_folder = Slurm_utils.cluster_scratch_path(username) * data_path_str
 	if rm_data
 		SSH_utils.rm_dir(username, host, path_to_data_folder)
 	end
@@ -277,8 +269,7 @@ end |> WideCell
 # ╔═╡ 16a91e7a-9ca7-452b-93cb-ce9a2b6476d3
 if clu && run_clu
 	local_code_path = normpath(joinpath(@__DIR__, "../sim/"))*"."
-	path_to_code = string("/home/users/$(username[1])/$username",code_path_str)
-	# path_to_data_folder = string("/srv/beegfs/scratch/users/$(username[1])/$username",data_path_str)
+	path_to_code = Slurm_utils.cluster_home_path(username) * code_path_str
 
 	println("Create $path_to_code on $username@$host")
 	SSH_utils.mkdir(username, host, path_to_code)
@@ -341,8 +332,8 @@ end
 
 # ╔═╡ 08ca3f40-0135-46fc-85be-6b1b3fed0acd
 if clu
-	remote_data_folder = string("/srv/beegfs/scratch/users/$(username[1])/$username",
-		endswith(data_path_str, "/") ? data_path_str : data_path_str * "/")
+	remote_data_folder = Slurm_utils.cluster_scratch_path(username) *
+		(endswith(data_path_str, "/") ? data_path_str : data_path_str * "/")
 	md"""
 ## 3. Download data
 
